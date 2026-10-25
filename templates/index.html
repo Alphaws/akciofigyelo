@@ -847,13 +847,18 @@
                     <div id="detail-audit-history" class="text-xs max-h-36 overflow-y-auto space-y-1.5 pr-1"></div>
                 </div>
 
-                <div class="flex justify-end gap-2 pt-2 border-t border-slate-800">
-                    <button id="detail-edit-price-btn" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-md">
-                        <i class="fa-solid fa-pen-to-square"></i> Ár módosítása
+                <div class="flex justify-between items-center gap-2 pt-2 border-t border-slate-800">
+                    <button onclick="openMergeFromCurrentProduct()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-semibold text-xs rounded-xl border border-slate-700 hover:border-emerald-500/40 transition flex items-center gap-1.5" title="Összevonás egy másik termékkel egy közös csoportba">
+                        <i class="fa-solid fa-code-merge text-xs"></i> Összevonás más termékkel
                     </button>
-                    <button onclick="closeProductDetailsModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-xl transition">
-                        Bezárás
-                    </button>
+                    <div class="flex gap-2">
+                        <button id="detail-edit-price-btn" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-md">
+                            <i class="fa-solid fa-pen-to-square"></i> Ár módosítása
+                        </button>
+                        <button onclick="closeProductDetailsModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-xl transition">
+                            Bezárás
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2678,6 +2683,28 @@ kenyer`;
             document.getElementById('merge-search-input').value = '';
             document.getElementById('merge-search-results').classList.add('hidden');
             renderSelectedMergeProducts();
+            document.getElementById('merge-products-modal').classList.remove('hidden');
+        }
+
+        function openMergeFromCurrentProduct() {
+            if (!currentDetailProduct) return;
+            if (!authToken) {
+                openAuthModal();
+                alert('Termékek összevonásához kérjük jelentkezz be!');
+                return;
+            }
+            const p = currentDetailProduct;
+            selectedMergeProducts = [{
+                id: p.id,
+                name: p.name,
+                packaging: p.packaging,
+                unit: p.unit
+            }];
+            document.getElementById('merge-group-name').value = p.name;
+            document.getElementById('merge-search-input').value = '';
+            document.getElementById('merge-search-results').classList.add('hidden');
+            renderSelectedMergeProducts();
+            closeProductDetailsModal();
             document.getElementById('merge-products-modal').classList.remove('hidden');
         }
 
