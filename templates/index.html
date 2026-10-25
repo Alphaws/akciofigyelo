@@ -724,6 +724,45 @@
                 </div>
             </div>
         </div>
+        <!-- Rename Product Modal (Termék Átnevezése) -->
+        <div id="rename-product-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[60] hidden flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-pen-to-square text-emerald-400"></i>
+                        <span>Termék Átnevezése</span>
+                    </h3>
+                    <button onclick="closeRenameProductModal()" class="text-slate-400 hover:text-white text-lg">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-3 text-xs">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Új terméknév:</label>
+                        <input type="text" id="rename-prod-input" placeholder="pl. Sertéscomb kockázott 500g" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Módosítás indoklása (opcionális):</label>
+                        <input type="text" id="rename-prod-note" placeholder="pl. Pultos elnevezés tisztítása" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-300 focus:outline-none">
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-300 flex items-start gap-2">
+                        <i class="fa-solid fa-shield-halved mt-0.5 text-emerald-400"></i>
+                        <span><strong>Védelem:</strong> Az átnevezett termék nevét a rendszer megjegyzi, így az automatikus ár- és készletfrissítések sem fogják felülírni vagy újra létrehozni!</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-2 pt-2 border-t border-slate-800">
+                    <button onclick="closeRenameProductModal()" class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition">
+                        Mégse
+                    </button>
+                    <button onclick="submitRenameProduct()" class="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition">
+                        Átnevezés Mentése
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Full Product Details Modal (Termék Adatlap minden adattal) -->
         <div id="product-details-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
             <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto custom-scroll">
@@ -733,7 +772,12 @@
                             <span id="detail-cat-badge" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold font-mono"></span>
                             <span id="detail-unit-badge" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono"></span>
                         </div>
-                        <h3 id="detail-prod-name" class="text-base sm:text-lg font-black text-white"></h3>
+                        <div class="flex items-center gap-2">
+                            <h3 id="detail-prod-name" class="text-base sm:text-lg font-black text-white"></h3>
+                            <button id="detail-rename-btn" onclick="openRenameProductModal()" class="text-xs px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-emerald-400 border border-slate-700 transition flex items-center gap-1 shrink-0" title="Terméknév módosítása (védve az árfrissítések felülírásától)">
+                                <i class="fa-solid fa-pen text-[10px]"></i> Átnevezés
+                            </button>
+                        </div>
                         <div class="text-[11px] text-slate-500 font-mono flex items-center gap-2">
                             <span>EAN/Azonosító: <strong id="detail-prod-id" class="text-slate-300"></strong></span>
                             <span>•</span>
@@ -2391,6 +2435,66 @@ kenyer`;
 
         function closeProductDetailsModal() {
             document.getElementById('product-details-modal').classList.add('hidden');
+        }
+
+        // --- 7.1 RENAME PRODUCT LOGIC ---
+        function openRenameProductModal() {
+            if (!currentDetailProduct) return;
+            if (!authToken) {
+                alert('A termék átnevezéséhez kérjük jelentkezz be!');
+                openAuthModal();
+                return;
+            }
+            document.getElementById('rename-prod-input').value = currentDetailProduct.name || '';
+            document.getElementById('rename-prod-note').value = '';
+            document.getElementById('rename-product-modal').classList.remove('hidden');
+        }
+
+        function closeRenameProductModal() {
+            document.getElementById('rename-product-modal').classList.add('hidden');
+        }
+
+        async function submitRenameProduct() {
+            if (!currentDetailProduct) return;
+            const newName = document.getElementById('rename-prod-input').value.trim();
+            const note = document.getElementById('rename-prod-note').value.trim();
+
+            if (!newName || newName.length < 2) {
+                alert('Kérjük adj meg egy érvényes terméknevet (legalább 2 karakter)!');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/products/rename', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        product_id: currentDetailProduct.id,
+                        name: newName,
+                        note: note
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    alert('Hiba az átnevezéskor: ' + (data.detail || 'ismeretlen'));
+                    return;
+                }
+
+                alert(data.message);
+                currentDetailProduct.name = newName;
+                document.getElementById('detail-prod-name').innerText = newName;
+                closeRenameProductModal();
+
+                // Frissítjük a katalógust és a nyitott füleket
+                if (currentTab === 'catalog') loadCatalog();
+                if (currentTab === 'calculator') filterProducts();
+                if (currentTab === 'groups') loadProductGroups();
+            } catch (err) {
+                alert('Hálózati hiba: ' + err.message);
+            }
         }
 
         // --- 8. MERGED PRODUCT GROUPS LOGIC ---

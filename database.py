@@ -70,6 +70,9 @@ def init_db():
         CREATE TABLE IF NOT EXISTS products (
             id TEXT PRIMARY KEY, -- EAN / Barcode
             name TEXT NOT NULL,
+            custom_name TEXT,
+            is_custom_name INTEGER DEFAULT 0,
+            is_custom_category INTEGER DEFAULT 0,
             category_id INTEGER,
             category_path TEXT,
             main_category TEXT,

@@ -89,6 +89,11 @@ class UpdateProductCategoryRequest(BaseModel):
     sub_category: str
     note: Optional[str] = ""
 
+class UpdateProductNameRequest(BaseModel):
+    product_id: str
+    name: str
+    note: Optional[str] = ""
+
 class CreateTaxonomyCategoryRequest(BaseModel):
     key: str
     title: str
@@ -343,7 +348,7 @@ async def api_update_product_category(req: UpdateProductCategoryRequest, authori
 
     conn.execute("""
         UPDATE products
-        SET main_category = ?, sub_category = ?, updated_at = CURRENT_TIMESTAMP
+        SET main_category = ?, sub_category = ?, is_custom_category = 1, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
     """, (req.main_category, req.sub_category, req.product_id))
 
@@ -367,6 +372,48 @@ async def api_update_product_category(req: UpdateProductCategoryRequest, authori
         "message": f"Termék kategóriája sikeresen módosítva: {tree[req.main_category]['title']} -> {tree[req.main_category]['subs'][req.sub_category]}",
         "main_category": req.main_category,
         "sub_category": req.sub_category
+    }
+
+@app.post("/api/products/rename")
+async def api_rename_product(req: UpdateProductNameRequest, authorization: Optional[str] = Header(None)):
+    user = get_current_user(authorization)
+    new_name = req.name.strip()
+    if not new_name or len(new_name) < 2:
+        raise HTTPException(status_code=400, detail="A megadott terméknév túl rövid.")
+
+    conn = get_db_connection()
+    product = conn.execute("SELECT id, name, custom_name, is_custom_name FROM products WHERE id = ?", (req.product_id,)).fetchone()
+    if not product:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Termék nem található.")
+
+    old_name = product["name"]
+    conn.execute("""
+        UPDATE products
+        SET name = ?, custom_name = ?, is_custom_name = 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    """, (new_name, new_name, req.product_id))
+
+    # Audit naplózás a kategória/adat módosítási naplóba
+    conn.execute("""
+        INSERT INTO category_audit_logs
+        (user_id, user_email, user_name, action, entity_id, entity_name, old_value, new_value, note)
+        VALUES (?, ?, ?, 'RENAME_PRODUCT', ?, ?, ?, ?, ?)
+    """, (
+        user["sub"], user["email"], user["name"],
+        req.product_id, new_name,
+        old_name, new_name,
+        req.note or ""
+    ))
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "success",
+        "message": f"Termék sikeresen átnevezve: '{old_name}' -> '{new_name}' (az árfrissítések nem fogják felülírni)",
+        "product_id": req.product_id,
+        "name": new_name
     }
 
 # ==================== ADMIN TAXONOMY TREE MANAGEMENT ====================

@@ -204,8 +204,19 @@ async def fetch_flyers(client: httpx.AsyncClient):
                                     main_c, sub_c = resolve_product_categories(p_name, f"akcios_ujsag/{chain.lower()}")
 
                                     conn.execute("""
-                                        INSERT OR REPLACE INTO products (id, name, category_path, main_category, sub_category, unit, unit_title, packaging, image_url, min_unit_price, updated_at)
+                                        INSERT INTO products (id, name, category_path, main_category, sub_category, unit, unit_title, packaging, image_url, min_unit_price, updated_at)
                                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                                        ON CONFLICT(id) DO UPDATE SET
+                                            name = CASE WHEN products.is_custom_name = 1 THEN products.name ELSE excluded.name END,
+                                            category_path = excluded.category_path,
+                                            main_category = CASE WHEN products.is_custom_category = 1 THEN products.main_category ELSE excluded.main_category END,
+                                            sub_category = CASE WHEN products.is_custom_category = 1 THEN products.sub_category ELSE excluded.sub_category END,
+                                            unit = excluded.unit,
+                                            unit_title = excluded.unit_title,
+                                            packaging = excluded.packaging,
+                                            image_url = excluded.image_url,
+                                            min_unit_price = excluded.min_unit_price,
+                                            updated_at = CURRENT_TIMESTAMP
                                     """, (flyer_pid, p_name, f"akcios_ujsag/{chain.lower()}", main_c, sub_c, p_unit, "db", "1", thumb, p_price))
 
                                     conn.execute("""
@@ -309,8 +320,19 @@ async def run_full_crawler():
                     main_c, sub_c = resolve_product_categories(pname, cat_path or "")
 
                     conn.execute("""
-                        INSERT OR REPLACE INTO products (id, name, category_path, main_category, sub_category, unit, unit_title, packaging, image_url, min_unit_price, updated_at)
+                        INSERT INTO products (id, name, category_path, main_category, sub_category, unit, unit_title, packaging, image_url, min_unit_price, updated_at)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                        ON CONFLICT(id) DO UPDATE SET
+                            name = CASE WHEN products.is_custom_name = 1 THEN products.name ELSE excluded.name END,
+                            category_path = excluded.category_path,
+                            main_category = CASE WHEN products.is_custom_category = 1 THEN products.main_category ELSE excluded.main_category END,
+                            sub_category = CASE WHEN products.is_custom_category = 1 THEN products.sub_category ELSE excluded.sub_category END,
+                            unit = excluded.unit,
+                            unit_title = excluded.unit_title,
+                            packaging = excluded.packaging,
+                            image_url = excluded.image_url,
+                            min_unit_price = excluded.min_unit_price,
+                            updated_at = CURRENT_TIMESTAMP
                     """, (pid, pname, cat_path, main_c, sub_c, unit, unit_title, packaging, img, min_unit_price))
                     total_products += 1
 
