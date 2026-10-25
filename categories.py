@@ -309,11 +309,11 @@ def map_gvh_category(gvh_path: str):
         if "laktozmentes" in sub1:
             if "tejfol" in sub2: return ("tejtermek", "tejfol")
             if "sajt" in sub2: return ("tejtermek", "sajt")
-            if "vaj" in sub2: return ("tejtermek", "vaj_margarin")
+            if "vaj" in sub2 or "margarin" in sub2: return ("tejtermek", "vaj_margarin")
             if "turo" in sub2: return ("tejtermek", "turo_desszert")
             if "joghurt" in sub2 or "kefir" in sub2: return ("tejtermek", "joghurt_kefir")
             if "tej" in sub2: return ("tejtermek", "tej")
-            return ("tejtermek", "tej")
+            return ("tejtermek", "vaj_margarin") if "margarin" in sub1 else ("tejtermek", "tej")
         elif "novenyi" in sub1:
             return ("tejtermek", "novenyi_helyettesito")
         elif "glutenmentes" in sub1:
