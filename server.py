@@ -110,6 +110,22 @@ class UpdateTaxonomySubcategoryRequest(BaseModel):
     title: str
     sort_order: Optional[int] = 100
 
+class CreateProductGroupRequest(BaseModel):
+    name: str
+    main_category: Optional[str] = None
+    sub_category: Optional[str] = None
+    description: Optional[str] = ""
+    product_ids: Optional[List[str]] = None
+
+class AddProductsToGroupRequest(BaseModel):
+    group_id: int
+    product_ids: List[str]
+
+class MergeProductsRequest(BaseModel):
+    primary_product_id: str
+    merge_product_ids: List[str]
+    group_name: Optional[str] = None
+
 def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Bejelentkezés szükséges a művelethez.")
@@ -521,6 +537,311 @@ async def api_admin_delete_subcategory(main_key: str, sub_key: str, authorizatio
     conn.close()
     return {"status": "success", "message": f"'{existing['title']}' alkategória törölve."}
 
+# ==================== PRODUCT MERGING & PRODUCT GROUPS ====================
+
+@app.get("/api/product-groups")
+async def api_list_product_groups(
+    q: Optional[str] = None,
+    main_category: Optional[str] = None,
+    sub_category: Optional[str] = None,
+    limit: int = Query(50, ge=1, le=100)
+):
+    conn = get_db_connection()
+    where = []
+    params = []
+
+    if q:
+        from calculator import normalize_text
+        words = normalize_text(q).split()
+        for w in words:
+            where.append("NORMALIZE(pg.name) LIKE ?")
+            params.append(f"%{w}%")
+
+    if main_category:
+        where.append("pg.main_category = ?")
+        params.append(main_category)
+
+    if sub_category:
+        where.append("pg.sub_category = ?")
+        params.append(sub_category)
+
+    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+    sql = f"""
+        SELECT pg.id, pg.name, pg.main_category, pg.sub_category, pg.description, pg.updated_at,
+               COUNT(pgi.product_id) as items_count
+        FROM product_groups pg
+        LEFT JOIN product_group_items pgi ON pgi.group_id = pg.id
+        {where_sql}
+        GROUP BY pg.id
+        ORDER BY pg.name ASC
+        LIMIT ?
+    """
+    rows = conn.execute(sql, params + [limit]).fetchall()
+    
+    from categories import get_taxonomy_tree_from_db
+    taxonomy_tree = get_taxonomy_tree_from_db(conn)
+
+    groups = []
+    for r in rows:
+        gid = r["id"]
+        # Kinyerjük a csoportba tartozó termékek legolcsóbb árait boltlánconként
+        group_prices = conn.execute("""
+            SELECT pr.chain_name, MIN(pr.amount) as min_amount, pr.price_type
+            FROM product_group_items pgi
+            JOIN prices pr ON pr.product_id = pgi.product_id
+            WHERE pgi.group_id = ?
+            GROUP BY pr.chain_name
+            ORDER BY min_amount ASC
+        """, (gid,)).fetchall()
+
+        chain_offers = {}
+        for gp in group_prices:
+            chain_offers[gp["chain_name"]] = {
+                "chain": gp["chain_name"],
+                "amount": gp["min_amount"],
+                "price_type": gp["price_type"]
+            }
+
+        # Elsődleges termék képe
+        prim_img = conn.execute("""
+            SELECT p.image_url FROM products p
+            JOIN product_group_items pgi ON pgi.product_id = p.id
+            WHERE pgi.group_id = ?
+            ORDER BY pgi.is_primary DESC, p.image_url IS NULL
+            LIMIT 1
+        """, (gid,)).fetchone()
+
+        mc = r["main_category"]
+        sc = r["sub_category"]
+        mc_title = taxonomy_tree.get(mc, {}).get("title", mc or "")
+        sc_title = taxonomy_tree.get(mc, {}).get("subs", {}).get(sc, sc or "")
+
+        groups.append({
+            "id": gid,
+            "name": r["name"],
+            "main_category": mc,
+            "sub_category": sc,
+            "main_category_title": mc_title,
+            "sub_category_title": sc_title,
+            "description": r["description"],
+            "items_count": r["items_count"],
+            "image_url": prim_img[0] if prim_img else None,
+            "chain_prices": chain_offers
+        })
+    conn.close()
+    return {"groups": groups}
+
+@app.get("/api/product-groups/{group_id}")
+async def api_get_product_group(group_id: int):
+    conn = get_db_connection()
+    grp = conn.execute("SELECT id, name, main_category, sub_category, description FROM product_groups WHERE id = ?", (group_id,)).fetchone()
+    if not grp:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Összevont termékcsoport nem található.")
+
+    # Kinyerjük az összes hozzárendelt terméket minden adatával és áraival
+    items_rows = conn.execute("""
+        SELECT p.id, p.name, p.category_path, p.main_category, p.sub_category, p.unit, p.unit_title, p.packaging, p.image_url, p.min_unit_price, pgi.is_primary
+        FROM product_group_items pgi
+        JOIN products p ON p.id = pgi.product_id
+        WHERE pgi.group_id = ?
+        ORDER BY pgi.is_primary DESC, p.name ASC
+    """, (group_id,)).fetchall()
+
+    from categories import get_taxonomy_tree_from_db
+    taxonomy_tree = get_taxonomy_tree_from_db(conn)
+
+    products = []
+    all_prices = []
+    for ir in items_rows:
+        pid = ir["id"]
+        prices = conn.execute("""
+            SELECT chain_name, price_type, amount, unit_amount, updated_at
+            FROM prices
+            WHERE product_id = ?
+            ORDER BY amount ASC
+        """, (pid,)).fetchall()
+
+        p_dict = dict(ir)
+        p_dict["prices"] = [dict(pr) for pr in prices]
+        for pr in prices:
+            all_prices.append({
+                "product_id": pid,
+                "product_name": ir["name"],
+                "chain_name": pr["chain_name"],
+                "amount": pr["amount"],
+                "unit_amount": pr["unit_amount"],
+                "price_type": pr["price_type"]
+            })
+        products.append(p_dict)
+
+    # Lánconként a legkedvezőbb ajánlatok
+    best_by_chain = {}
+    for ap in sorted(all_prices, key=lambda x: x["amount"]):
+        c = ap["chain_name"]
+        if c not in best_by_chain:
+            best_by_chain[c] = ap
+
+    conn.close()
+    return {
+        "group": dict(grp),
+        "products": products,
+        "best_by_chain": best_by_chain,
+        "total_offers": len(all_prices)
+    }
+
+@app.post("/api/product-groups/merge")
+async def api_merge_products(req: MergeProductsRequest, authorization: Optional[str] = Header(None)):
+    user = get_current_user(authorization)
+    conn = get_db_connection()
+
+    all_pids = list(set([req.primary_product_id] + (req.merge_product_ids or [])))
+    if len(all_pids) < 2:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Legalább két termék szükséges az összevonáshoz.")
+
+    # Ellenőrizzük a fő terméket
+    prim_prod = conn.execute("SELECT id, name, main_category, sub_category FROM products WHERE id = ?", (req.primary_product_id,)).fetchone()
+    if not prim_prod:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Az elsődleges termék nem található.")
+
+    group_name = (req.group_name or prim_prod["name"]).strip()
+
+    # Ellenőrizzük, hogy az elsődleges termék benne van-e már egy csoportban
+    existing_group = conn.execute("""
+        SELECT g.id, g.name FROM product_groups g
+        JOIN product_group_items gi ON gi.group_id = g.id
+        WHERE gi.product_id = ?
+        LIMIT 1
+    """, (req.primary_product_id,)).fetchone()
+
+    if existing_group:
+        group_id = existing_group["id"]
+        if req.group_name:
+            conn.execute("UPDATE product_groups SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (group_name, group_id))
+    else:
+        cur = conn.execute("""
+            INSERT INTO product_groups (name, main_category, sub_category, description)
+            VALUES (?, ?, ?, 'Összevont termékkínálat')
+        """, (group_name, prim_prod["main_category"], prim_prod["sub_category"]))
+        group_id = cur.lastrowid
+
+    # Tételek hozzárendelése a csoporthoz
+    for pid in all_pids:
+        # Ha a termék már másik csoportban volt, onnan átkerül ide
+        conn.execute("DELETE FROM product_group_items WHERE product_id = ?", (pid,))
+        is_prim = 1 if pid == req.primary_product_id else 0
+        conn.execute("""
+            INSERT INTO product_group_items (group_id, product_id, is_primary)
+            VALUES (?, ?, ?)
+        """, (group_id, pid, is_prim))
+
+    conn.execute("""
+        INSERT INTO category_audit_logs
+        (user_id, user_email, user_name, action, entity_id, entity_name, old_value, new_value, note)
+        VALUES (?, ?, ?, 'MERGE_PRODUCTS', ?, ?, NULL, ?, 'Termékek összevonva csoportba')
+    """, (user["sub"], user["email"], user["name"], str(group_id), group_name, f"{len(all_pids)} termék összevonva"))
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "success",
+        "message": f"Sikeres összevonás! A(z) '{group_name}' csoport most {len(all_pids)} termékajánlatot tartalmaz.",
+        "group_id": group_id
+    }
+
+@app.delete("/api/product-groups/{group_id}/items/{product_id}")
+async def api_remove_product_from_group(group_id: int, product_id: str, authorization: Optional[str] = Header(None)):
+    user = get_current_user(authorization)
+    conn = get_db_connection()
+
+    conn.execute("DELETE FROM product_group_items WHERE group_id = ? AND product_id = ?", (group_id, product_id))
+    
+    # Ha a csoport kiürült, töröljük a csoportot is
+    remaining = conn.execute("SELECT COUNT(*) FROM product_group_items WHERE group_id = ?", (group_id,)).fetchone()[0]
+    if remaining == 0:
+        conn.execute("DELETE FROM product_groups WHERE id = ?", (group_id,))
+
+    conn.commit()
+    conn.close()
+    return {"status": "success", "message": "Termék eltávolítva a csoportból."}
+
+# ==================== SINGLE PRODUCT DETAIL WITH ALL DATA ====================
+
+@app.get("/api/products/{product_id}/details")
+async def api_get_product_details(product_id: str):
+    conn = get_db_connection()
+    prod = conn.execute("""
+        SELECT id, name, category_id, category_path, main_category, sub_category, unit, unit_title, packaging, image_url, min_unit_price, updated_at
+        FROM products
+        WHERE id = ?
+    """, (product_id,)).fetchone()
+
+    if not prod:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Termék nem található.")
+
+    # Árak lekérése
+    prices = conn.execute("""
+        SELECT id, chain_id, chain_name, price_type, amount, unit_amount, same_amount_everywhere, updated_at
+        FROM prices
+        WHERE product_id = ?
+        ORDER BY amount ASC
+    """, (product_id,)).fetchall()
+
+    # Ár audit naplók ehhez a termékhez
+    audit_logs = conn.execute("""
+        SELECT id, user_name, user_email, action, chain_name, old_amount, new_amount, old_price_type, new_price_type, note, created_at
+        FROM price_audit_logs
+        WHERE product_id = ?
+        ORDER BY id DESC
+        LIMIT 20
+    """, (product_id,)).fetchall()
+
+    # Összevont csoport ellenőrzése
+    group_info = conn.execute("""
+        SELECT pg.id, pg.name, pg.description, pgi.is_primary
+        FROM product_group_items pgi
+        JOIN product_groups pg ON pg.id = pgi.group_id
+        WHERE pgi.product_id = ?
+        LIMIT 1
+    """, (product_id,)).fetchone()
+
+    related_products = []
+    if group_info:
+        rel_rows = conn.execute("""
+            SELECT p.id, p.name, p.image_url, p.min_unit_price, pgi.is_primary,
+                   (SELECT GROUP_CONCAT(chain_name || ': ' || CAST(amount AS INT) || ' Ft', ', ') FROM prices WHERE product_id = p.id) as price_summary
+            FROM product_group_items pgi
+            JOIN products p ON p.id = pgi.product_id
+            WHERE pgi.group_id = ? AND p.id != ?
+            ORDER BY pgi.is_primary DESC, p.name ASC
+        """, (group_info["id"], product_id)).fetchall()
+        related_products = [dict(rr) for rr in rel_rows]
+
+    from categories import get_taxonomy_tree_from_db
+    taxonomy_tree = get_taxonomy_tree_from_db(conn)
+
+    mc = prod["main_category"]
+    sc = prod["sub_category"]
+    mc_title = taxonomy_tree.get(mc, {}).get("title", mc or "")
+    sc_title = taxonomy_tree.get(mc, {}).get("subs", {}).get(sc, sc or "")
+
+    conn.close()
+    return {
+        "product": {
+            **dict(prod),
+            "main_category_title": mc_title,
+            "sub_category_title": sc_title
+        },
+        "prices": [dict(pr) for pr in prices],
+        "audit_logs": [dict(al) for al in audit_logs],
+        "group": dict(group_info) if group_info else None,
+        "related_products": related_products
+    }
+
 @app.get("/api/price-audit-logs")
 async def api_audit_logs(
     product_id: Optional[str] = None, 
@@ -721,6 +1042,15 @@ async def api_products_catalog(
         mc_title = taxonomy_tree.get(mc, {}).get("title", mc or "")
         sc_title = taxonomy_tree.get(mc, {}).get("subs", {}).get(sc, sc or "")
 
+        # Összevont csoport információ lekérése
+        grp = conn.execute("""
+            SELECT pg.id, pg.name, (SELECT COUNT(*) FROM product_group_items WHERE group_id = pg.id) as total_items
+            FROM product_group_items pgi
+            JOIN product_groups pg ON pg.id = pgi.group_id
+            WHERE pgi.product_id = ?
+            LIMIT 1
+        """, (pid,)).fetchone()
+
         items.append({
             "id": pid,
             "name": r["name"],
@@ -734,7 +1064,8 @@ async def api_products_catalog(
             "packaging": r["packaging"],
             "image_url": r["image_url"],
             "min_unit_price": r["min_unit_price"],
-            "chain_prices": chain_prices
+            "chain_prices": chain_prices,
+            "group": dict(grp) if grp else None
         })
     conn.close()
 

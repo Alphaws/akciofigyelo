@@ -42,6 +42,10 @@
                         <i class="fa-solid fa-boxes-stacked"></i>
                         <span>Összes Termék</span>
                     </button>
+                    <button id="nav-btn-groups" onclick="switchMainTab('groups')" class="px-3.5 py-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition flex items-center gap-2">
+                        <i class="fa-solid fa-object-group text-emerald-400"></i>
+                        <span>Összevont Kínálat</span>
+                    </button>
                     <button id="nav-btn-flyers" onclick="switchMainTab('flyers')" class="px-3.5 py-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition flex items-center gap-2">
                         <i class="fa-solid fa-book-open"></i>
                         <span>Akciós Újságok</span>
@@ -378,8 +382,31 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- 5. TAB: PRICE AUDIT LOGS                   -->
+        <!-- 2.5 TAB: MERGED PRODUCT GROUPS             -->
         <!-- ========================================== -->
+        <section id="tab-groups" class="hidden space-y-6">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row gap-3 items-center justify-between shadow-lg">
+                <div>
+                    <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-object-group text-emerald-400"></i>
+                        Összevont Termékkínálat & Boltok Közötti Összehasonlítás
+                    </h2>
+                    <p class="text-xs text-slate-400">Pl. Sertéscomb több bolt kínálatából egy közös csoportban, összehasonlítható árakkal és lánconkénti legolcsóbb ajánlattal.</p>
+                </div>
+                <div class="flex items-center gap-2 w-full md:w-auto">
+                    <div class="relative flex-1 md:w-64">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-500 text-xs"></i>
+                        <input type="text" id="groups-search-input" placeholder="Keresés csoportokban (pl. sertéscomb)..." oninput="loadProductGroups()" class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                    </div>
+                    <button onclick="openMergeProductsModal()" class="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition flex items-center gap-1.5 whitespace-nowrap shadow-sm">
+                        <i class="fa-solid fa-code-merge"></i> Termékek Összevonása
+                    </button>
+                </div>
+            </div>
+
+            <!-- Groups Grid -->
+            <div id="groups-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </section>
         <section id="tab-audit" class="hidden space-y-6">
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between shadow-lg">
                 <div>
@@ -697,8 +724,178 @@
                 </div>
             </div>
         </div>
-            <!-- Filter Bar -->
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between shadow-lg">
+        <!-- Full Product Details Modal (Termék Adatlap minden adattal) -->
+        <div id="product-details-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto custom-scroll">
+                <div class="flex items-start justify-between border-b border-slate-800 pb-3">
+                    <div class="space-y-1 pr-4">
+                        <div class="flex items-center gap-2">
+                            <span id="detail-cat-badge" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold font-mono"></span>
+                            <span id="detail-unit-badge" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono"></span>
+                        </div>
+                        <h3 id="detail-prod-name" class="text-base sm:text-lg font-black text-white"></h3>
+                        <div class="text-[11px] text-slate-500 font-mono flex items-center gap-2">
+                            <span>EAN/Azonosító: <strong id="detail-prod-id" class="text-slate-300"></strong></span>
+                            <span>•</span>
+                            <span>Frissítve: <span id="detail-updated-at"></span></span>
+                        </div>
+                    </div>
+                    <button onclick="closeProductDetailsModal()" class="text-slate-400 hover:text-white text-xl p-1">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
+                    <!-- Image & Packaging Info -->
+                    <div class="md:col-span-5 flex flex-col items-center">
+                        <div class="w-full h-48 bg-slate-950 rounded-2xl flex items-center justify-center p-3 border border-slate-800 overflow-hidden mb-3">
+                            <img id="detail-prod-img" src="" alt="Termékkép" class="h-full object-contain">
+                        </div>
+                        <div id="detail-packaging-box" class="w-full p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs space-y-1">
+                            <div class="text-slate-400 flex justify-between">
+                                <span>Kiszerelés:</span>
+                                <strong id="detail-packaging-val" class="text-slate-200">1 db</strong>
+                            </div>
+                            <div class="text-slate-400 flex justify-between">
+                                <span>Egység:</span>
+                                <strong id="detail-unit-val" class="text-slate-200">db</strong>
+                            </div>
+                            <div class="text-slate-400 flex justify-between">
+                                <span>Legjobb egységár:</span>
+                                <strong id="detail-min-price-val" class="text-emerald-400 font-mono font-bold">-</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Store Prices & Comparison -->
+                    <div class="md:col-span-7 space-y-4">
+                        <div>
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
+                                <i class="fa-solid fa-tags text-emerald-400"></i> Bolti árak és akciók
+                            </h4>
+                            <div id="detail-prices-list" class="space-y-2"></div>
+                        </div>
+
+                        <!-- Associated Merged Group (if any) -->
+                        <div id="detail-group-section" class="hidden p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20 space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-object-group"></i> Összevont termékkínálat része
+                                </span>
+                                <button id="detail-group-open-btn" class="text-[11px] text-emerald-400 hover:underline font-semibold">
+                                    Csoport megtekintése &rarr;
+                                </button>
+                            </div>
+                            <div id="detail-group-name" class="text-xs text-slate-200 font-semibold"></div>
+                            <div id="detail-related-summary" class="text-[11px] text-slate-400"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Price Audit History for this Product -->
+                <div class="border-t border-slate-800 pt-4 space-y-2">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-clock-rotate-left text-slate-400"></i> Árváltozások és módosítási előzmények
+                    </h4>
+                    <div id="detail-audit-history" class="text-xs max-h-36 overflow-y-auto space-y-1.5 pr-1"></div>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                    <button id="detail-edit-price-btn" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-md">
+                        <i class="fa-solid fa-pen-to-square"></i> Ár módosítása
+                    </button>
+                    <button onclick="closeProductDetailsModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-xl transition">
+                        Bezárás
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Merged Product Group Details Modal -->
+        <div id="group-details-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-3xl w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto custom-scroll">
+                <div class="flex items-start justify-between border-b border-slate-800 pb-3">
+                    <div class="space-y-1">
+                        <span id="grp-modal-cat-badge" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold"></span>
+                        <h3 id="grp-modal-title" class="text-lg font-black text-white"></h3>
+                        <p id="grp-modal-desc" class="text-xs text-slate-400"></p>
+                    </div>
+                    <button onclick="closeGroupDetailsModal()" class="text-slate-400 hover:text-white text-xl p-1">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- Best price per chain summary badges -->
+                <div>
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
+                        <i class="fa-solid fa-trophy text-amber-400"></i> Legjobb árak boltlánconként az összevont kínálatból
+                    </h4>
+                    <div id="grp-modal-best-chains" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
+                </div>
+
+                <!-- Products list inside this group -->
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                            <i class="fa-solid fa-boxes-stacked text-emerald-400"></i>
+                            Összevont termékek a csoportban (<span id="grp-modal-prod-count">0</span> db)
+                        </h4>
+                    </div>
+                    <div id="grp-modal-items-list" class="space-y-2"></div>
+                </div>
+
+                <div class="flex justify-end pt-3 border-t border-slate-800">
+                    <button onclick="closeGroupDetailsModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-xl transition">
+                        Bezárás
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Merge Products Modal (Termékek Összevonása) -->
+        <div id="merge-products-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-code-merge text-emerald-400"></i>
+                        <span>Termékek összevonása egy csoportba</span>
+                    </h3>
+                    <button onclick="closeMergeProductsModal()" class="text-slate-400 hover:text-white text-lg">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-3 text-xs">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Csoport elnevezése (pl. Sertéscomb kínálat, 10 db-os tojások)</label>
+                        <input type="text" id="merge-group-name" placeholder="pl. Sertéscomb csont nélkül" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-slate-400 mb-1">Keresd meg az összevonandó termékeket:</label>
+                        <input type="text" id="merge-search-input" oninput="searchProductsForMerge(this.value)" placeholder="Írj be legalább 2 betűt (pl. sertescomb)..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none">
+                    </div>
+
+                    <div id="merge-search-results" class="max-h-40 overflow-y-auto divide-y divide-slate-800 border border-slate-800 rounded-xl bg-slate-950/60 p-1 custom-scroll hidden"></div>
+
+                    <div>
+                        <label class="block text-slate-400 mb-1">Kiválasztott összevonandó termékek:</label>
+                        <div id="merge-selected-list" class="min-h-16 max-h-36 overflow-y-auto border border-slate-800 rounded-xl bg-slate-950/80 p-2 space-y-1.5 custom-scroll">
+                            <span class="text-slate-500 italic block py-2 text-center">Még nincs kiválasztott termék. Kérjük válassz legalább kettőt a keresőből!</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex gap-2 pt-2 border-t border-slate-800">
+                    <button onclick="closeMergeProductsModal()" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition">
+                        Mégse
+                    </button>
+                    <button onclick="submitMergeProducts()" class="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20">
+                        Összevonás végrehajtása
+                    </button>
+                </div>
+            </div>
+        </div>
                 <div class="flex flex-1 w-full gap-2 items-center">
                     <input type="text" id="shop-city-input" placeholder="Város (pl. Budapest, Győr, Pécs, Szeged)..." onkeydown="if(event.key === 'Enter') loadShops()" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none">
                     <select id="shop-chain-select" onchange="loadShops()" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none">
@@ -771,7 +968,7 @@
 
         function switchMainTab(tab) {
             currentTab = tab;
-            ['calculator', 'catalog', 'flyers', 'shops', 'audit', 'categories-admin'].forEach(t => {
+            ['calculator', 'catalog', 'groups', 'flyers', 'shops', 'audit', 'categories-admin'].forEach(t => {
                 const el = document.getElementById(`tab-${t}`);
                 if (el) el.classList.add('hidden');
                 const btn = document.getElementById(`nav-btn-${t}`);
@@ -787,6 +984,7 @@
                 if (categoriesData.length === 0) loadCategories();
                 filterCatalog(1);
             }
+            if (tab === 'groups') loadProductGroups();
             if (tab === 'flyers') loadFlyers();
             if (tab === 'shops') loadShops();
             if (tab === 'audit') loadAuditLogs();
@@ -1237,22 +1435,36 @@ kenyer`;
                            </span>`
                         : `<button onclick="openProductCategoryModal('${p.id}', '${p.name.replace(/'/g, "\\'")}', '${p.main_category || ''}', '${p.sub_category || ''}')" class="text-[10px] text-amber-400 hover:underline mb-1 block">+ Kategória hozzáadása</button>`;
 
+                    const groupBadge = p.group 
+                        ? `<div onclick="openGroupDetailsModal(${p.group.id})" class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/40 font-semibold mb-1 cursor-pointer transition" title="Kattints az összevont kínálat megtekintéséhez">
+                            <i class="fa-solid fa-object-group text-[9px]"></i>
+                            <span>${p.group.name} (${p.group.total_items} ajánlat)</span>
+                           </div>`
+                        : '';
+
                     return `
                         <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col justify-between hover:border-slate-700 transition">
                             <div>
-                                <div class="h-32 w-full bg-slate-950 rounded-lg flex items-center justify-center p-2 mb-2 overflow-hidden">
+                                <div onclick="openProductDetailsModal('${p.id}')" class="h-32 w-full bg-slate-950 rounded-lg flex items-center justify-center p-2 mb-2 overflow-hidden cursor-pointer hover:opacity-90 transition">
                                     ${p.image_url ? `<img src="${p.image_url}" alt="${p.name}" class="h-full object-contain">` : '<i class="fa-solid fa-image text-slate-800 text-2xl"></i>'}
                                 </div>
-                                ${catBadge}
-                                <div class="text-xs font-bold text-slate-200 line-clamp-2 mb-1" title="${p.name}">${p.name}</div>
+                                <div class="flex flex-wrap gap-1 mb-1">
+                                    ${catBadge}
+                                    ${groupBadge}
+                                </div>
+                                <div onclick="openProductDetailsModal('${p.id}')" class="text-xs font-bold text-slate-200 line-clamp-2 mb-1 cursor-pointer hover:text-emerald-400 transition" title="Kattints az összes adat megnyitásához: ${p.name}">${p.name}</div>
                                 <div class="text-[10px] text-slate-500 mb-2 truncate">${p.main_category_title ? p.main_category_title + ' • ' : ''}${p.unit || ''}</div>
                             </div>
                             <div class="bg-slate-950/80 rounded-lg p-2 border border-slate-800/80 space-y-1">
                                 ${priceList || '<div class="text-[10px] text-slate-500">Nincs rögzített ár</div>'}
-                                <button onclick="openPriceEditModal('${p.id}', '${p.name.replace(/'/g, "\\'")}')" class="w-full mt-2 py-1 px-2 rounded bg-slate-900 hover:bg-slate-800 text-[11px] text-emerald-400 font-semibold border border-slate-800 hover:border-emerald-500/40 transition flex items-center justify-center gap-1.5">
-                                    <i class="fa-solid fa-pen-to-square text-[10px]"></i>
-                                    <span>Ár módosítása / hozzáadása</span>
-                                </button>
+                                <div class="flex gap-1.5 mt-2">
+                                    <button onclick="openProductDetailsModal('${p.id}')" class="flex-1 py-1 px-2 rounded bg-slate-900 hover:bg-slate-800 text-[11px] text-slate-300 font-semibold border border-slate-800 transition flex items-center justify-center gap-1" title="Minden adat és árváltozás">
+                                        <i class="fa-solid fa-circle-info text-[10px] text-emerald-400"></i> Adatlap
+                                    </button>
+                                    <button onclick="openPriceEditModal('${p.id}', '${p.name.replace(/'/g, "\\'")}')" class="py-1 px-2 rounded bg-slate-900 hover:bg-slate-800 text-[11px] text-emerald-400 font-semibold border border-slate-800 hover:border-emerald-500/40 transition flex items-center justify-center gap-1" title="Ár módosítása">
+                                        <i class="fa-solid fa-pen-to-square text-[10px]"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     `;
@@ -2041,6 +2253,403 @@ kenyer`;
                 alert(data.message);
                 await loadCategories();
                 loadCategoriesAdminView();
+            } catch (err) {
+                alert('Hálózati hiba: ' + err.message);
+            }
+        }
+        // --- 7. PRODUCT DETAILS MODAL (Minden adat megtekintése) ---
+        let currentDetailProduct = null;
+
+        async function openProductDetailsModal(productId) {
+            try {
+                const res = await fetch(`/api/products/${encodeURIComponent(productId)}/details`);
+                const data = await res.json();
+                if (!res.ok) {
+                    alert('Hiba a termék adatlapjának betöltésekor: ' + (data.detail || 'ismeretlen hiba'));
+                    return;
+                }
+
+                const p = data.product;
+                currentDetailProduct = p;
+
+                document.getElementById('detail-prod-name').innerText = p.name;
+                document.getElementById('detail-prod-id').innerText = p.id;
+                document.getElementById('detail-updated-at').innerText = p.updated_at || '-';
+                document.getElementById('detail-cat-badge').innerText = p.sub_category_title || p.main_category_title || 'Kategorizálatlan';
+                document.getElementById('detail-unit-badge').innerText = `${p.packaging || 1} ${p.unit || 'db'}`;
+                
+                const imgEl = document.getElementById('detail-prod-img');
+                if (p.image_url) {
+                    imgEl.src = p.image_url;
+                    imgEl.classList.remove('hidden');
+                } else {
+                    imgEl.classList.add('hidden');
+                }
+
+                document.getElementById('detail-packaging-val').innerText = p.packaging || '1 db';
+                document.getElementById('detail-unit-val').innerText = p.unit_title || p.unit || 'db';
+                document.getElementById('detail-min-price-val').innerText = p.min_unit_price ? `${Number(p.min_unit_price).toLocaleString('hu-HU')} Ft` : '-';
+
+                // Bolti árak listája
+                const pricesList = document.getElementById('detail-prices-list');
+                if (data.prices && data.prices.length > 0) {
+                    pricesList.innerHTML = data.prices.map(pr => `
+                        <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-slate-200 text-xs">${pr.chain_name}</span>
+                                ${pr.price_type === 'DISCOUNTED' ? '<span class="text-[9px] px-1.5 py-0.2 rounded bg-red-500/20 text-red-400 font-bold">AKCIÓ</span>' : ''}
+                            </div>
+                            <div class="text-right">
+                                <span class="text-sm font-bold font-mono ${pr.price_type === 'DISCOUNTED' ? 'text-red-400' : 'text-emerald-400'}">
+                                    ${Number(pr.amount).toLocaleString('hu-HU')} Ft
+                                </span>
+                                ${pr.unit_amount && pr.unit_amount !== pr.amount ? `<span class="text-[10px] text-slate-500 block font-mono">(${Number(pr.unit_amount).toLocaleString('hu-HU')} Ft/${p.unit || 'egység'})</span>` : ''}
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    pricesList.innerHTML = '<div class="text-xs text-slate-500 italic p-3 text-center bg-slate-950 rounded-xl border border-slate-800">Nincs rögzített bolti ár ehhez a termékhez.</div>';
+                }
+
+                // Összevont csoport információ
+                const groupSec = document.getElementById('detail-group-section');
+                if (data.group) {
+                    groupSec.classList.remove('hidden');
+                    document.getElementById('detail-group-name').innerText = data.group.name;
+                    const relCount = data.related_products ? data.related_products.length : 0;
+                    document.getElementById('detail-related-summary').innerText = `Ebben a kínálati csoportban még ${relCount} alternatív bolti termék található összehasonlítva.`;
+                    document.getElementById('detail-group-open-btn').onclick = () => {
+                        closeProductDetailsModal();
+                        openGroupDetailsModal(data.group.id);
+                    };
+                } else {
+                    groupSec.classList.add('hidden');
+                }
+
+                // Árváltozási napló (audit trail)
+                const auditBox = document.getElementById('detail-audit-history');
+                if (data.audit_logs && data.audit_logs.length > 0) {
+                    auditBox.innerHTML = data.audit_logs.map(al => `
+                        <div class="flex items-center justify-between p-2 rounded-lg bg-slate-950/80 border border-slate-800/80 text-[11px]">
+                            <div>
+                                <span class="font-bold text-slate-300">${al.chain_name}</span>
+                                <span class="text-slate-500"> • ${al.user_name} által</span>
+                                ${al.note ? `<span class="italic text-slate-400 block text-[10px]">"${al.note}"</span>` : ''}
+                            </div>
+                            <div class="text-right font-mono">
+                                <span class="text-slate-500 line-through mr-1">${al.old_amount ? Number(al.old_amount).toLocaleString('hu-HU') + ' Ft' : ''}</span>
+                                <span class="text-emerald-400 font-bold">${Number(al.new_amount).toLocaleString('hu-HU')} Ft</span>
+                                <span class="text-[9px] text-slate-500 block">${al.created_at}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    auditBox.innerHTML = '<div class="text-[11px] text-slate-500 italic">Még nem történt manuális árváltoztatás ennél a terméknél.</div>';
+                }
+
+                // Ármódosítás gomb összekötése
+                document.getElementById('detail-edit-price-btn').onclick = () => {
+                    closeProductDetailsModal();
+                    openPriceEditModal(p.id, p.name);
+                };
+
+                document.getElementById('product-details-modal').classList.remove('hidden');
+            } catch (err) {
+                alert('Hiba: ' + err.message);
+            }
+        }
+
+        function closeProductDetailsModal() {
+            document.getElementById('product-details-modal').classList.add('hidden');
+        }
+
+        // --- 8. MERGED PRODUCT GROUPS LOGIC ---
+        let allProductGroups = [];
+
+        async function loadProductGroups() {
+            const grid = document.getElementById('groups-grid');
+            const q = document.getElementById('groups-search-input').value.trim();
+            grid.innerHTML = '<div class="col-span-full text-center py-12 text-slate-500 text-xs"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Összevont termékkínálat betöltése...</div>';
+
+            try {
+                let url = '/api/product-groups?limit=60';
+                if (q) url += `&q=${encodeURIComponent(q)}`;
+                const res = await fetch(url);
+                const data = await res.json();
+                allProductGroups = data.groups || [];
+
+                if (allProductGroups.length === 0) {
+                    grid.innerHTML = '<div class="col-span-full text-center py-12 text-slate-500 text-xs">Nem található összevont termékcsoport. Készíts egyet a fenti "Termékek Összevonása" gombbal!</div>';
+                    return;
+                }
+
+                grid.innerHTML = allProductGroups.map(grp => {
+                    const bestPrices = Object.values(grp.chain_prices || {}).map(cp => `
+                        <div class="flex items-center justify-between text-xs py-1 border-b border-slate-900/60 last:border-0">
+                            <span class="text-slate-400 font-medium">${cp.chain}</span>
+                            <span class="${cp.price_type === 'DISCOUNTED' ? 'text-red-400 font-bold' : 'text-emerald-400 font-bold'} font-mono">
+                                ${Number(cp.amount).toLocaleString('hu-HU')} Ft
+                            </span>
+                        </div>
+                    `).join('');
+
+                    return `
+                        <div class="bg-slate-900 border border-slate-800 hover:border-emerald-500/50 rounded-2xl p-4 shadow-lg flex flex-col justify-between transition group">
+                            <div>
+                                <div class="flex items-start justify-between gap-2 mb-2">
+                                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold truncate max-w-[200px]">
+                                        ${grp.sub_category_title || grp.main_category_title || 'Kínálat'}
+                                    </span>
+                                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">
+                                        <i class="fa-solid fa-boxes-stacked mr-1 text-emerald-400"></i> ${grp.items_count} termék
+                                    </span>
+                                </div>
+                                <h3 onclick="openGroupDetailsModal(${grp.id})" class="text-sm font-bold text-white hover:text-emerald-400 cursor-pointer transition mb-1">${grp.name}</h3>
+                                <p class="text-[11px] text-slate-400 line-clamp-2 mb-3">${grp.description || 'Összevont bolti ajánlatok'}</p>
+                            </div>
+
+                            <div class="space-y-3">
+                                <div class="bg-slate-950/80 rounded-xl p-2.5 border border-slate-800/80">
+                                    <div class="text-[10px] uppercase font-bold tracking-wider text-slate-500 mb-1 flex items-center justify-between">
+                                        <span>Legjobb bolti árak</span>
+                                        <i class="fa-solid fa-arrow-down-short-wide text-emerald-400"></i>
+                                    </div>
+                                    ${bestPrices || '<div class="text-[10px] text-slate-500">Nincs rögzített ár</div>'}
+                                </div>
+
+                                <button onclick="openGroupDetailsModal(${grp.id})" class="w-full py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-semibold text-xs rounded-xl border border-emerald-500/30 transition flex items-center justify-center gap-1.5">
+                                    <span>Összes ajánlat megtekintése (${grp.items_count} db)</span>
+                                    <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (err) {
+                grid.innerHTML = `<div class="col-span-full text-center text-red-400 text-xs py-6">Hiba a csoportok betöltésekor: ${err}</div>`;
+            }
+        }
+
+        async function openGroupDetailsModal(groupId) {
+            try {
+                const res = await fetch(`/api/product-groups/${groupId}`);
+                const data = await res.json();
+                if (!res.ok) {
+                    alert('Hiba a csoport adatainak betöltésekor: ' + (data.detail || 'ismeretlen'));
+                    return;
+                }
+
+                const grp = data.group;
+                document.getElementById('grp-modal-title').innerText = grp.name;
+                document.getElementById('grp-modal-desc').innerText = grp.description || 'Összevont termékkínálat összehasonlítása';
+                document.getElementById('grp-modal-cat-badge').innerText = `${grp.main_category || ''} / ${grp.sub_category || ''}`;
+                document.getElementById('grp-modal-prod-count').innerText = data.products ? data.products.length : 0;
+
+                // Legjobb árak boltlánconként (kártyák)
+                const bestBox = document.getElementById('grp-modal-best-chains');
+                const bestChains = Object.values(data.best_by_chain || {});
+                if (bestChains.length > 0) {
+                    bestBox.innerHTML = bestChains.map(bc => `
+                        <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-xs flex flex-col justify-between">
+                            <span class="text-slate-400 font-bold">${bc.chain_name}</span>
+                            <div class="mt-1">
+                                <span class="text-sm font-extrabold font-mono ${bc.price_type === 'DISCOUNTED' ? 'text-red-400' : 'text-emerald-400'}">
+                                    ${Number(bc.amount).toLocaleString('hu-HU')} Ft
+                                </span>
+                                <span class="text-[9px] text-slate-500 block truncate" title="${bc.product_name}">${bc.product_name}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    bestBox.innerHTML = '<div class="col-span-full text-xs text-slate-500">Nincsenek rögzített árak a csoportban.</div>';
+                }
+
+                // Összes összevont termék részletes listája
+                const itemsList = document.getElementById('grp-modal-items-list');
+                itemsList.innerHTML = (data.products || []).map(p => {
+                    const priceBadges = (p.prices || []).map(pr => `
+                        <span class="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 font-mono text-[11px] ${pr.price_type === 'DISCOUNTED' ? 'text-red-400 font-bold' : 'text-emerald-400'}">
+                            ${pr.chain_name}: ${Number(pr.amount).toLocaleString('hu-HU')} Ft
+                        </span>
+                    `).join(' ');
+
+                    return `
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition gap-2">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 bg-slate-900 rounded-lg flex items-center justify-center p-1 overflow-hidden shrink-0">
+                                    ${p.image_url ? `<img src="${p.image_url}" class="h-full object-contain">` : '<i class="fa-solid fa-box text-slate-700"></i>'}
+                                </div>
+                                <div>
+                                    <div class="text-xs font-bold text-slate-100">${p.name}</div>
+                                    <div class="text-[10px] text-slate-500 font-mono">EAN: ${p.id} • ${p.packaging || 1} ${p.unit || 'db'}</div>
+                                    <div class="flex flex-wrap gap-1.5 mt-1">${priceBadges || '<span class="text-[10px] text-slate-500">Nincs ár</span>'}</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                                <button onclick="openProductDetailsModal('${p.id}')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-semibold border border-slate-700 transition flex items-center gap-1">
+                                    <i class="fa-solid fa-circle-info text-emerald-400"></i> Adatlap
+                                </button>
+                                <button onclick="removeProductFromGroup(${groupId}, '${p.id}')" class="p-1 text-slate-500 hover:text-red-400 transition" title="Eltávolítás ebből a csoportból">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                document.getElementById('group-details-modal').classList.remove('hidden');
+            } catch (err) {
+                alert('Hiba: ' + err.message);
+            }
+        }
+
+        function closeGroupDetailsModal() {
+            document.getElementById('group-details-modal').classList.add('hidden');
+        }
+
+        async function removeProductFromGroup(groupId, productId) {
+            if (!confirm('Biztosan eltávolítod ezt a terméket az összevont csoportból?')) return;
+            try {
+                const res = await fetch(`/api/product-groups/${groupId}/items/${encodeURIComponent(productId)}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    alert('Hiba: ' + (data.detail || 'ismeretlen'));
+                    return;
+                }
+                alert(data.message);
+                openGroupDetailsModal(groupId);
+                loadProductGroups();
+            } catch (err) {
+                alert('Hiba: ' + err.message);
+            }
+        }
+
+        // --- 9. MERGE PRODUCTS MODAL (Összevonás létrehozása) ---
+        let selectedMergeProducts = [];
+
+        function openMergeProductsModal() {
+            if (!authToken) {
+                openAuthModal();
+                alert('Termékek összevonásához kérjük jelentkezz be!');
+                return;
+            }
+            selectedMergeProducts = [];
+            document.getElementById('merge-group-name').value = '';
+            document.getElementById('merge-search-input').value = '';
+            document.getElementById('merge-search-results').classList.add('hidden');
+            renderSelectedMergeProducts();
+            document.getElementById('merge-products-modal').classList.remove('hidden');
+        }
+
+        function closeMergeProductsModal() {
+            document.getElementById('merge-products-modal').classList.add('hidden');
+        }
+
+        let mergeSearchTimeout = null;
+        function searchProductsForMerge(q) {
+            clearTimeout(mergeSearchTimeout);
+            const resBox = document.getElementById('merge-search-results');
+            if (!q || q.trim().length < 2) {
+                resBox.classList.add('hidden');
+                return;
+            }
+
+            mergeSearchTimeout = setTimeout(async () => {
+                try {
+                    const res = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}`);
+                    const data = await res.json();
+                    const results = data.results || [];
+                    if (results.length === 0) {
+                        resBox.innerHTML = '<div class="p-2 text-slate-500 text-center">Nincs találat</div>';
+                        resBox.classList.remove('hidden');
+                        return;
+                    }
+
+                    resBox.innerHTML = results.map(p => `
+                        <div onclick="addMergeProduct('${p.id}', '${p.name.replace(/'/g, "\\'")}')" class="p-2 hover:bg-slate-800 cursor-pointer flex items-center justify-between text-xs transition">
+                            <span class="text-slate-200 font-medium">${p.name}</span>
+                            <span class="text-[10px] text-emerald-400 font-mono"><i class="fa-solid fa-plus mr-1"></i>Hozzáadás</span>
+                        </div>
+                    `).join('');
+                    resBox.classList.remove('hidden');
+                } catch (err) {
+                    console.error("Merge search error:", err);
+                }
+            }, 250);
+        }
+
+        function addMergeProduct(id, name) {
+            if (selectedMergeProducts.some(p => p.id === id)) return;
+            selectedMergeProducts.push({ id, name });
+            if (selectedMergeProducts.length === 1 && !document.getElementById('merge-group-name').value) {
+                document.getElementById('merge-group-name').value = name;
+            }
+            renderSelectedMergeProducts();
+        }
+
+        function removeMergeProduct(id) {
+            selectedMergeProducts = selectedMergeProducts.filter(p => p.id !== id);
+            renderSelectedMergeProducts();
+        }
+
+        function renderSelectedMergeProducts() {
+            const list = document.getElementById('merge-selected-list');
+            if (selectedMergeProducts.length === 0) {
+                list.innerHTML = '<span class="text-slate-500 italic block py-2 text-center">Még nincs kiválasztott termék. Kérjük válassz legalább kettőt a keresőből!</span>';
+                return;
+            }
+
+            list.innerHTML = selectedMergeProducts.map((p, idx) => `
+                <div class="flex items-center justify-between p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs">
+                    <div class="flex items-center gap-1.5 truncate max-w-sm">
+                        <span class="text-[10px] px-1.5 py-0.2 rounded font-mono ${idx === 0 ? 'bg-emerald-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-400'}">
+                            ${idx === 0 ? 'Fő tétel' : 'Alternatíva'}
+                        </span>
+                        <span class="text-slate-200 font-medium truncate">${p.name}</span>
+                    </div>
+                    <button onclick="removeMergeProduct('${p.id}')" class="text-slate-500 hover:text-red-400 p-1">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        async function submitMergeProducts() {
+            if (selectedMergeProducts.length < 2) {
+                alert('Kérjük válassz legalább két összevonandó terméket!');
+                return;
+            }
+
+            const groupName = document.getElementById('merge-group-name').value.trim();
+            const primaryId = selectedMergeProducts[0].id;
+            const mergeIds = selectedMergeProducts.slice(1).map(p => p.id);
+
+            try {
+                const res = await fetch('/api/product-groups/merge', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        primary_product_id: primaryId,
+                        merge_product_ids: mergeIds,
+                        group_name: groupName || undefined
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    alert('Hiba az összevonáskor: ' + (data.detail || 'ismeretlen'));
+                    return;
+                }
+
+                alert(data.message);
+                closeMergeProductsModal();
+                switchMainTab('groups');
+                loadProductGroups();
             } catch (err) {
                 alert('Hálózati hiba: ' + err.message);
             }

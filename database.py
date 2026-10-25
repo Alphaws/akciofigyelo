@@ -177,6 +177,28 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
+        CREATE TABLE IF NOT EXISTS product_groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            main_category TEXT,
+            sub_category TEXT,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS product_group_items (
+            group_id INTEGER NOT NULL,
+            product_id TEXT NOT NULL,
+            is_primary INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (group_id, product_id),
+            FOREIGN KEY (group_id) REFERENCES product_groups(id) ON DELETE CASCADE,
+            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_group_items_prod ON product_group_items(product_id);
+        CREATE INDEX IF NOT EXISTS idx_group_items_grp ON product_group_items(group_id);
         CREATE INDEX IF NOT EXISTS idx_cat_audit_created ON category_audit_logs(created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_audit_created ON price_audit_logs(created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_audit_prod ON price_audit_logs(product_id);
