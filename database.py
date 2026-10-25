@@ -147,6 +147,37 @@ def init_db():
             FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS taxonomy_categories (
+            key TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            icon TEXT DEFAULT 'fa-solid fa-box',
+            sort_order INTEGER DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS taxonomy_subcategories (
+            main_key TEXT NOT NULL,
+            sub_key TEXT NOT NULL,
+            title TEXT NOT NULL,
+            sort_order INTEGER DEFAULT 0,
+            PRIMARY KEY (main_key, sub_key),
+            FOREIGN KEY (main_key) REFERENCES taxonomy_categories(key) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS category_audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            user_email TEXT NOT NULL,
+            user_name TEXT NOT NULL,
+            action TEXT NOT NULL, -- UPDATE_PRODUCT_CATEGORY, CREATE_CATEGORY, UPDATE_CATEGORY, DELETE_CATEGORY
+            entity_id TEXT, -- product_id or category_key
+            entity_name TEXT,
+            old_value TEXT,
+            new_value TEXT,
+            note TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_cat_audit_created ON category_audit_logs(created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_audit_created ON price_audit_logs(created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_audit_prod ON price_audit_logs(product_id);
         CREATE INDEX IF NOT EXISTS idx_audit_user ON price_audit_logs(user_email);

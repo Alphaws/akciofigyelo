@@ -54,6 +54,10 @@
                         <i class="fa-solid fa-clock-rotate-left"></i>
                         <span>Ár Módosítások</span>
                     </button>
+                    <button id="nav-btn-categories-admin" onclick="switchMainTab('categories-admin')" class="px-3.5 py-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition hidden items-center gap-2">
+                        <i class="fa-solid fa-sitemap text-amber-400"></i>
+                        <span>Kategória Fa Kezelő</span>
+                    </button>
                 </div>
 
                 <!-- Auth & Sync Action -->
@@ -532,7 +536,167 @@
                 </div>
             </div>
         </div>
-        <section id="tab-shops" class="hidden space-y-6">
+        <!-- ========================================== -->
+        <!-- 6. TAB: CATEGORIES TAXONOMY ADMIN (ADMIN)  -->
+        <!-- ========================================== -->
+        <section id="tab-categories-admin" class="hidden space-y-6">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between shadow-lg">
+                <div>
+                    <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-sitemap text-amber-400"></i>
+                        Kategória Fa Kezelő (Adminisztráció)
+                    </h2>
+                    <p class="text-xs text-slate-400">Főkategóriák és alkategóriák létrehozása, átnevezése, átrendezése és karbantartása.</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="openCreateMainCategoryModal()" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-solid fa-plus"></i> Új Főkategória
+                    </button>
+                    <button onclick="loadCategoriesAdminView()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 rounded-xl border border-slate-700 transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-rotate"></i> Frissítés
+                    </button>
+                </div>
+            </div>
+
+            <!-- Taxonomy Tree Interactive Manager -->
+            <div id="taxonomy-admin-list" class="space-y-4"></div>
+        </section>
+
+        <!-- Edit Product Category Modal -->
+        <div id="product-category-edit-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-tags text-emerald-400"></i>
+                        Termék kategóriájának módosítása
+                    </h3>
+                    <button onclick="closeProductCategoryModal()" class="text-slate-400 hover:text-white text-lg">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">Termék</label>
+                        <div id="modal-cat-product-name" class="text-xs font-semibold text-slate-100 bg-slate-950 p-2.5 rounded-xl border border-slate-800"></div>
+                        <input type="hidden" id="modal-cat-product-id">
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">Főkategória</label>
+                        <select id="modal-cat-main-select" onchange="populateModalSubcategories()" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"></select>
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">Alkategória</label>
+                        <select id="modal-cat-sub-select" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"></select>
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">Megjegyzés / Indoklás</label>
+                        <input type="text" id="modal-cat-note" placeholder="pl. téves automata besorolás javítása" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button onclick="closeProductCategoryModal()" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition">
+                        Mégse
+                    </button>
+                    <button onclick="submitProductCategoryEdit()" class="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20">
+                        Kategória mentése
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create/Edit Main Category Modal -->
+        <div id="taxonomy-main-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h3 id="tax-main-modal-title" class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-folder-plus text-emerald-400"></i>
+                        <span>Főkategória</span>
+                    </h3>
+                    <button onclick="closeTaxMainModal()" class="text-slate-400 hover:text-white text-lg">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-3">
+                    <div id="tax-main-key-group">
+                        <label class="block text-[11px] text-slate-400 mb-1">Egyedi azonosító kulcs (angol, ékezet nélkül)</label>
+                        <input type="text" id="tax-main-key-input" placeholder="pl. haztartasi_gepek" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">Megnevezés (magyarul)</label>
+                        <input type="text" id="tax-main-title-input" placeholder="pl. Háztartási Kisgépek" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[11px] text-slate-400 mb-1">FontAwesome ikon</label>
+                            <input type="text" id="tax-main-icon-input" placeholder="fa-solid fa-blender" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 font-mono focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-slate-400 mb-1">Sorrend</label>
+                            <input type="number" id="tax-main-order-input" value="100" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button onclick="closeTaxMainModal()" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition">
+                        Mégse
+                    </button>
+                    <button onclick="submitTaxMainCategory()" class="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition">
+                        Mentés
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create/Edit Subcategory Modal -->
+        <div id="taxonomy-sub-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h3 id="tax-sub-modal-title" class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-tag text-emerald-400"></i>
+                        <span>Alkategória</span>
+                    </h3>
+                    <button onclick="closeTaxSubModal()" class="text-slate-400 hover:text-white text-lg">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <input type="hidden" id="tax-sub-parent-key">
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">Főkategória</label>
+                        <div id="tax-sub-parent-title" class="text-xs font-bold text-emerald-400 bg-slate-950 p-2 rounded-lg border border-slate-800"></div>
+                    </div>
+                    <div id="tax-sub-key-group">
+                        <label class="block text-[11px] text-slate-400 mb-1">Alkategória kulcs (angol, ékezet nélkül)</label>
+                        <input type="text" id="tax-sub-key-input" placeholder="pl. kavefozok" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">Alkategória neve (magyarul)</label>
+                        <input type="text" id="tax-sub-title-input" placeholder="pl. Kávéfőzők és tartozékok" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">Sorrend</label>
+                        <input type="number" id="tax-sub-order-input" value="100" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button onclick="closeTaxSubModal()" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition">
+                        Mégse
+                    </button>
+                    <button onclick="submitTaxSubcategory()" class="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition">
+                        Mentés
+                    </button>
+                </div>
+            </div>
+        </div>
             <!-- Filter Bar -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between shadow-lg">
                 <div class="flex flex-1 w-full gap-2 items-center">
@@ -607,7 +771,7 @@
 
         function switchMainTab(tab) {
             currentTab = tab;
-            ['calculator', 'catalog', 'flyers', 'shops', 'audit'].forEach(t => {
+            ['calculator', 'catalog', 'flyers', 'shops', 'audit', 'categories-admin'].forEach(t => {
                 const el = document.getElementById(`tab-${t}`);
                 if (el) el.classList.add('hidden');
                 const btn = document.getElementById(`nav-btn-${t}`);
@@ -626,6 +790,7 @@
             if (tab === 'flyers') loadFlyers();
             if (tab === 'shops') loadShops();
             if (tab === 'audit') loadAuditLogs();
+            if (tab === 'categories-admin') loadCategoriesAdminView();
         }
 
         function requestUserLocation(reloadShops = false) {
@@ -1066,8 +1231,11 @@ kenyer`;
                     `).join('');
 
                     const catBadge = p.sub_category_title 
-                        ? `<span class="inline-block text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium mb-1 truncate max-w-full">${p.sub_category_title}</span>`
-                        : '';
+                        ? `<span onclick="openProductCategoryModal('${p.id}', '${p.name.replace(/'/g, "\\'")}', '${p.main_category || ''}', '${p.sub_category || ''}')" class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 font-medium mb-1 truncate max-w-full cursor-pointer transition" title="Kattints a kategória módosításához">
+                            <i class="fa-solid fa-pen text-[8px] opacity-70"></i>
+                            <span>${p.sub_category_title}</span>
+                           </span>`
+                        : `<button onclick="openProductCategoryModal('${p.id}', '${p.name.replace(/'/g, "\\'")}', '${p.main_category || ''}', '${p.sub_category || ''}')" class="text-[10px] text-amber-400 hover:underline mb-1 block">+ Kategória hozzáadása</button>`;
 
                     return `
                         <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col justify-between hover:border-slate-700 transition">
@@ -1291,6 +1459,7 @@ kenyer`;
             const loggedInBox = document.getElementById('logged-in-box');
             const userNameDisplay = document.getElementById('user-name-display');
             const userAvatar = document.getElementById('user-avatar');
+            const adminNavBtn = document.getElementById('nav-btn-categories-admin');
 
             if (user) {
                 loginBtn.classList.add('hidden');
@@ -1301,9 +1470,16 @@ kenyer`;
                 } else {
                     userAvatar.innerText = (user.name || user.email)[0].toUpperCase();
                 }
+
+                if (user.role === 'admin') {
+                    if (adminNavBtn) adminNavBtn.classList.remove('hidden');
+                } else {
+                    if (adminNavBtn) adminNavBtn.classList.add('hidden');
+                }
             } else {
                 loginBtn.classList.remove('hidden');
                 loggedInBox.classList.add('hidden');
+                if (adminNavBtn) adminNavBtn.classList.add('hidden');
             }
         }
 
@@ -1525,6 +1701,348 @@ kenyer`;
                 }).join('');
             } catch (err) {
                 tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-red-400 text-xs">Hiba a napló betöltésekor: ${err}</td></tr>`;
+            }
+        }
+        // --- 6. PRODUCT CATEGORY EDIT & TAXONOMY ADMIN ---
+        let editingTaxMainKey = null;
+        let editingTaxSubKey = null;
+
+        function openProductCategoryModal(productId, productName, currentMain, currentSub) {
+            if (!authToken) {
+                openAuthModal();
+                alert('A termék kategóriájának módosításához kérjük jelentkezz be (pl. admin@akcio.vane.hu / admin1234)!');
+                return;
+            }
+
+            document.getElementById('modal-cat-product-id').value = productId;
+            document.getElementById('modal-cat-product-name').innerText = productName;
+            document.getElementById('modal-cat-note').value = '';
+
+            const mainSelect = document.getElementById('modal-cat-main-select');
+            mainSelect.innerHTML = categoriesData.map(c => `
+                <option value="${c.key}" ${c.key === currentMain ? 'selected' : ''}>${c.title}</option>
+            `).join('');
+
+            populateModalSubcategories(currentSub);
+            document.getElementById('product-category-edit-modal').classList.remove('hidden');
+        }
+
+        function populateModalSubcategories(selectSubKey = null) {
+            const mainKey = document.getElementById('modal-cat-main-select').value;
+            const subSelect = document.getElementById('modal-cat-sub-select');
+            const mainCat = categoriesData.find(c => c.key === mainKey);
+            if (!mainCat || !mainCat.subs || mainCat.subs.length === 0) {
+                subSelect.innerHTML = '<option value="egyeb">Egyéb</option>';
+                return;
+            }
+
+            subSelect.innerHTML = mainCat.subs.map(s => `
+                <option value="${s.key}" ${s.key === selectSubKey ? 'selected' : ''}>${s.title}</option>
+            `).join('');
+        }
+
+        function closeProductCategoryModal() {
+            document.getElementById('product-category-edit-modal').classList.add('hidden');
+        }
+
+        async function submitProductCategoryEdit() {
+            const productId = document.getElementById('modal-cat-product-id').value;
+            const mainCategory = document.getElementById('modal-cat-main-select').value;
+            const subCategory = document.getElementById('modal-cat-sub-select').value;
+            const note = document.getElementById('modal-cat-note').value.trim();
+
+            try {
+                const res = await fetch('/api/products/category', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        product_id: productId,
+                        main_category: mainCategory,
+                        sub_category: subCategory,
+                        note: note
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    alert('Hiba a kategória módosításakor: ' + (data.detail || 'ismeretlen hiba'));
+                    return;
+                }
+
+                alert(data.message);
+                closeProductCategoryModal();
+                await loadCategories();
+                filterCatalog(catalogPage);
+            } catch (err) {
+                alert('Hálózati hiba: ' + err.message);
+            }
+        }
+
+        // TAXONOMY TREE ADMIN FUNCTIONS
+        async function loadCategoriesAdminView() {
+            const container = document.getElementById('taxonomy-admin-list');
+            container.innerHTML = '<div class="p-6 text-center text-slate-500 text-xs"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Kategória struktúra betöltése...</div>';
+            try {
+                await loadCategories();
+                if (!categoriesData || categoriesData.length === 0) {
+                    container.innerHTML = '<div class="p-6 text-center text-slate-500 text-xs">Nincsenek kategóriák.</div>';
+                    return;
+                }
+
+                container.innerHTML = categoriesData.map(cat => {
+                    const subItems = cat.subs && cat.subs.length > 0 ? cat.subs.map(sub => `
+                        <div class="flex items-center justify-between p-2 rounded-lg bg-slate-950/80 border border-slate-800/80 text-xs hover:border-slate-700 transition">
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid fa-tag text-emerald-400 text-[10px]"></i>
+                                <span class="font-medium text-slate-200">${sub.title}</span>
+                                <span class="text-[10px] text-slate-500 font-mono">(${sub.key})</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-emerald-400 font-mono">${sub.count} termék</span>
+                                <button onclick="openEditSubcategoryModal('${cat.key}', '${sub.key}', '${sub.title.replace(/'/g, "\\'")}')" class="text-slate-400 hover:text-white p-1" title="Szerkesztés">
+                                    <i class="fa-solid fa-pen"></i>
+                                </button>
+                                <button onclick="deleteSubcategory('${cat.key}', '${sub.key}', '${sub.title.replace(/'/g, "\\'")}')" class="text-slate-500 hover:text-red-400 p-1" title="Törlés">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `).join('') : '<div class="text-[11px] text-slate-500 italic p-2">Nincs még hozzáadott alkategória.</div>';
+
+                    return `
+                        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md space-y-3">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-800/80 gap-2">
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center text-emerald-400">
+                                        <i class="${cat.icon}"></i>
+                                    </div>
+                                    <div>
+                                        <div class="text-sm font-bold text-white flex items-center gap-2">
+                                            <span>${cat.title}</span>
+                                            <span class="text-[10px] text-slate-500 font-mono">(${cat.key})</span>
+                                        </div>
+                                        <div class="text-[11px] text-slate-400">Összesen ${cat.total_count} termék ebben a kategóriában</div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-1.5 self-end sm:self-auto">
+                                    <button onclick="openCreateSubcategoryModal('${cat.key}', '${cat.title.replace(/'/g, "\\'")}')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs font-semibold rounded-lg border border-slate-700 transition flex items-center gap-1">
+                                        <i class="fa-solid fa-plus text-[10px]"></i> Alkategória hozzáadása
+                                    </button>
+                                    <button onclick="openEditMainCategoryModal('${cat.key}', '${cat.title.replace(/'/g, "\\'")}', '${cat.icon}')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg border border-slate-700 transition" title="Főkategória szerkesztése">
+                                        <i class="fa-solid fa-pen"></i>
+                                    </button>
+                                    <button onclick="deleteMainCategory('${cat.key}', '${cat.title.replace(/'/g, "\\'")}')" class="px-2 py-1 bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 text-xs rounded-lg border border-slate-700 transition" title="Főkategória törlése">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 pt-1">
+                                ${subItems}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (err) {
+                container.innerHTML = `<div class="p-6 text-center text-red-400 text-xs">Hiba a kategóriák betöltésekor: ${err}</div>`;
+            }
+        }
+
+        function openCreateMainCategoryModal() {
+            editingTaxMainKey = null;
+            document.getElementById('tax-main-modal-title').innerHTML = '<i class="fa-solid fa-folder-plus text-emerald-400"></i><span>Új Főkategória</span>';
+            document.getElementById('tax-main-key-group').classList.remove('hidden');
+            document.getElementById('tax-main-key-input').value = '';
+            document.getElementById('tax-main-title-input').value = '';
+            document.getElementById('tax-main-icon-input').value = 'fa-solid fa-box';
+            document.getElementById('tax-main-order-input').value = '100';
+            document.getElementById('taxonomy-main-modal').classList.remove('hidden');
+        }
+
+        function openEditMainCategoryModal(key, title, icon) {
+            editingTaxMainKey = key;
+            document.getElementById('tax-main-modal-title').innerHTML = '<i class="fa-solid fa-pen text-emerald-400"></i><span>Főkategória szerkesztése</span>';
+            document.getElementById('tax-main-key-group').classList.add('hidden');
+            document.getElementById('tax-main-title-input').value = title;
+            document.getElementById('tax-main-icon-input').value = icon || 'fa-solid fa-box';
+            document.getElementById('tax-main-order-input').value = '50';
+            document.getElementById('taxonomy-main-modal').classList.remove('hidden');
+        }
+
+        function closeTaxMainModal() {
+            document.getElementById('taxonomy-main-modal').classList.add('hidden');
+        }
+
+        async function submitTaxMainCategory() {
+            const title = document.getElementById('tax-main-title-input').value.trim();
+            const icon = document.getElementById('tax-main-icon-input').value.trim() || 'fa-solid fa-box';
+            const sortOrder = parseInt(document.getElementById('tax-main-order-input').value) || 100;
+
+            if (!title) {
+                alert('A kategória megnevezése kötelező!');
+                return;
+            }
+
+            try {
+                let url, method, body;
+                if (editingTaxMainKey) {
+                    url = `/api/admin/categories/${encodeURIComponent(editingTaxMainKey)}`;
+                    method = 'PUT';
+                    body = { title, icon, sort_order: sortOrder };
+                } else {
+                    const key = document.getElementById('tax-main-key-input').value.trim().toLowerCase();
+                    if (!key) {
+                        alert('A kategória egyedi kulcsa kötelező!');
+                        return;
+                    }
+                    url = '/api/admin/categories';
+                    method = 'POST';
+                    body = { key, title, icon, sort_order: sortOrder };
+                }
+
+                const res = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    alert('Hiba: ' + (data.detail || 'ismeretlen hiba'));
+                    return;
+                }
+
+                alert(data.message);
+                closeTaxMainModal();
+                await loadCategories();
+                loadCategoriesAdminView();
+            } catch (err) {
+                alert('Hálózati hiba: ' + err.message);
+            }
+        }
+
+        async function deleteMainCategory(key, title) {
+            if (!confirm(`Biztosan törölni szeretnéd a(z) "${title}" főkategóriát és összes alkategóriáját? A hozzá tartozó termékek átkerülnek az Egyéb kategóriába.`)) return;
+
+            try {
+                const res = await fetch(`/api/admin/categories/${encodeURIComponent(key)}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    alert('Hiba: ' + (data.detail || 'ismeretlen hiba'));
+                    return;
+                }
+                alert(data.message);
+                await loadCategories();
+                loadCategoriesAdminView();
+            } catch (err) {
+                alert('Hálózati hiba: ' + err.message);
+            }
+        }
+
+        function openCreateSubcategoryModal(parentKey, parentTitle) {
+            editingTaxMainKey = parentKey;
+            editingTaxSubKey = null;
+            document.getElementById('tax-sub-modal-title').innerHTML = '<i class="fa-solid fa-plus text-emerald-400"></i><span>Új Alkategória</span>';
+            document.getElementById('tax-sub-parent-key').value = parentKey;
+            document.getElementById('tax-sub-parent-title').innerText = parentTitle;
+            document.getElementById('tax-sub-key-group').classList.remove('hidden');
+            document.getElementById('tax-sub-key-input').value = '';
+            document.getElementById('tax-sub-title-input').value = '';
+            document.getElementById('tax-sub-order-input').value = '100';
+            document.getElementById('taxonomy-sub-modal').classList.remove('hidden');
+        }
+
+        function openEditSubcategoryModal(parentKey, subKey, title) {
+            editingTaxMainKey = parentKey;
+            editingTaxSubKey = subKey;
+            const parentCat = categoriesData.find(c => c.key === parentKey);
+            document.getElementById('tax-sub-modal-title').innerHTML = '<i class="fa-solid fa-pen text-emerald-400"></i><span>Alkategória szerkesztése</span>';
+            document.getElementById('tax-sub-parent-key').value = parentKey;
+            document.getElementById('tax-sub-parent-title').innerText = parentCat ? parentCat.title : parentKey;
+            document.getElementById('tax-sub-key-group').classList.add('hidden');
+            document.getElementById('tax-sub-title-input').value = title;
+            document.getElementById('tax-sub-order-input').value = '50';
+            document.getElementById('taxonomy-sub-modal').classList.remove('hidden');
+        }
+
+        function closeTaxSubModal() {
+            document.getElementById('taxonomy-sub-modal').classList.add('hidden');
+        }
+
+        async function submitTaxSubcategory() {
+            const mainKey = document.getElementById('tax-sub-parent-key').value;
+            const title = document.getElementById('tax-sub-title-input').value.trim();
+            const sortOrder = parseInt(document.getElementById('tax-sub-order-input').value) || 100;
+
+            if (!title) {
+                alert('Az alkategória megnevezése kötelező!');
+                return;
+            }
+
+            try {
+                let url, method, body;
+                if (editingTaxSubKey) {
+                    url = `/api/admin/subcategories/${encodeURIComponent(mainKey)}/${encodeURIComponent(editingTaxSubKey)}`;
+                    method = 'PUT';
+                    body = { title, sort_order: sortOrder };
+                } else {
+                    const subKey = document.getElementById('tax-sub-key-input').value.trim().toLowerCase();
+                    if (!subKey) {
+                        alert('Az alkategória egyedi kulcsa kötelező!');
+                        return;
+                    }
+                    url = '/api/admin/subcategories';
+                    method = 'POST';
+                    body = { main_key: mainKey, sub_key: subKey, title, sort_order: sortOrder };
+                }
+
+                const res = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    alert('Hiba: ' + (data.detail || 'ismeretlen hiba'));
+                    return;
+                }
+
+                alert(data.message);
+                closeTaxSubModal();
+                await loadCategories();
+                loadCategoriesAdminView();
+            } catch (err) {
+                alert('Hálózati hiba: ' + err.message);
+            }
+        }
+
+        async function deleteSubcategory(mainKey, subKey, title) {
+            if (!confirm(`Biztosan törölni szeretnéd a(z) "${title}" alkategóriát? A benne lévő termékek alkategóriája Egyébre vált.`)) return;
+
+            try {
+                const res = await fetch(`/api/admin/subcategories/${encodeURIComponent(mainKey)}/${encodeURIComponent(subKey)}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    alert('Hiba: ' + (data.detail || 'ismeretlen hiba'));
+                    return;
+                }
+                alert(data.message);
+                await loadCategories();
+                loadCategoriesAdminView();
+            } catch (err) {
+                alert('Hálózati hiba: ' + err.message);
             }
         }
     </script>

@@ -83,6 +83,33 @@ class UpdatePriceRequest(BaseModel):
     price_type: Optional[str] = "NORMAL"
     note: Optional[str] = ""
 
+class UpdateProductCategoryRequest(BaseModel):
+    product_id: str
+    main_category: str
+    sub_category: str
+    note: Optional[str] = ""
+
+class CreateTaxonomyCategoryRequest(BaseModel):
+    key: str
+    title: str
+    icon: Optional[str] = "fa-solid fa-box"
+    sort_order: Optional[int] = 100
+
+class UpdateTaxonomyCategoryRequest(BaseModel):
+    title: str
+    icon: Optional[str] = "fa-solid fa-box"
+    sort_order: Optional[int] = 100
+
+class CreateTaxonomySubcategoryRequest(BaseModel):
+    main_key: str
+    sub_key: str
+    title: str
+    sort_order: Optional[int] = 100
+
+class UpdateTaxonomySubcategoryRequest(BaseModel):
+    title: str
+    sort_order: Optional[int] = 100
+
 def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Bejelentkezés szükséges a művelethez.")
@@ -91,6 +118,15 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[str, A
     if not payload:
         raise HTTPException(status_code=401, detail="Érvénytelen vagy lejárt munkamenet.")
     return payload
+
+def get_current_admin(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+    user = get_current_user(authorization)
+    conn = get_db_connection()
+    row = conn.execute("SELECT role FROM users WHERE id = ?", (user["sub"],)).fetchone()
+    conn.close()
+    if not row or row["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Csak adminisztrátor módosíthatja a kategória struktúrát.")
+    return user
 
 @app.get("/api/auth/config")
 async def api_auth_config():
@@ -267,6 +303,224 @@ async def api_update_price(req: UpdatePriceRequest, authorization: Optional[str]
         "action": action
     }
 
+@app.post("/api/products/category")
+async def api_update_product_category(req: UpdateProductCategoryRequest, authorization: Optional[str] = Header(None)):
+    user = get_current_user(authorization)
+    conn = get_db_connection()
+
+    product = conn.execute("SELECT id, name, main_category, sub_category FROM products WHERE id = ?", (req.product_id,)).fetchone()
+    if not product:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Termék nem található.")
+
+    from categories import get_taxonomy_tree_from_db
+    tree = get_taxonomy_tree_from_db(conn)
+    if req.main_category not in tree:
+        conn.close()
+        raise HTTPException(status_code=400, detail=f"Érvénytelen főkategória: {req.main_category}")
+    if req.sub_category not in tree[req.main_category].get("subs", {}):
+        conn.close()
+        raise HTTPException(status_code=400, detail=f"Érvénytelen alkategória: {req.sub_category}")
+
+    old_main = product["main_category"]
+    old_sub = product["sub_category"]
+
+    conn.execute("""
+        UPDATE products
+        SET main_category = ?, sub_category = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    """, (req.main_category, req.sub_category, req.product_id))
+
+    # Audit log
+    conn.execute("""
+        INSERT INTO category_audit_logs
+        (user_id, user_email, user_name, action, entity_id, entity_name, old_value, new_value, note)
+        VALUES (?, ?, ?, 'UPDATE_PRODUCT_CATEGORY', ?, ?, ?, ?, ?)
+    """, (
+        user["sub"], user["email"], user["name"],
+        req.product_id, product["name"],
+        f"{old_main}/{old_sub}", f"{req.main_category}/{req.sub_category}",
+        req.note or ""
+    ))
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "success",
+        "message": f"Termék kategóriája sikeresen módosítva: {tree[req.main_category]['title']} -> {tree[req.main_category]['subs'][req.sub_category]}",
+        "main_category": req.main_category,
+        "sub_category": req.sub_category
+    }
+
+# ==================== ADMIN TAXONOMY TREE MANAGEMENT ====================
+
+@app.post("/api/admin/categories")
+async def api_admin_create_category(req: CreateTaxonomyCategoryRequest, authorization: Optional[str] = Header(None)):
+    admin = get_current_admin(authorization)
+    conn = get_db_connection()
+
+    key = req.key.strip().lower()
+    title = req.title.strip()
+    if not key or not title:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Kategória kulcs és megnevezés megadása kötelező.")
+
+    existing = conn.execute("SELECT key FROM taxonomy_categories WHERE key = ?", (key,)).fetchone()
+    if existing:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Ez a főkategória azonosító már létezik.")
+
+    conn.execute("""
+        INSERT INTO taxonomy_categories (key, title, icon, sort_order)
+        VALUES (?, ?, ?, ?)
+    """, (key, title, req.icon or "fa-solid fa-box", req.sort_order or 100))
+
+    conn.execute("""
+        INSERT INTO category_audit_logs
+        (user_id, user_email, user_name, action, entity_id, entity_name, old_value, new_value, note)
+        VALUES (?, ?, ?, 'CREATE_CATEGORY', ?, ?, NULL, ?, 'Új főkategória hozzáadva')
+    """, (admin["sub"], admin["email"], admin["name"], key, title, title))
+
+    conn.commit()
+    conn.close()
+    return {"status": "success", "message": f"'{title}' főkategória sikeresen létrehozva."}
+
+@app.put("/api/admin/categories/{cat_key}")
+async def api_admin_update_category(cat_key: str, req: UpdateTaxonomyCategoryRequest, authorization: Optional[str] = Header(None)):
+    admin = get_current_admin(authorization)
+    conn = get_db_connection()
+
+    existing = conn.execute("SELECT key, title, icon, sort_order FROM taxonomy_categories WHERE key = ?", (cat_key,)).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Főkategória nem található.")
+
+    conn.execute("""
+        UPDATE taxonomy_categories
+        SET title = ?, icon = ?, sort_order = ?
+        WHERE key = ?
+    """, (req.title.strip(), req.icon or "fa-solid fa-box", req.sort_order, cat_key))
+
+    conn.execute("""
+        INSERT INTO category_audit_logs
+        (user_id, user_email, user_name, action, entity_id, entity_name, old_value, new_value, note)
+        VALUES (?, ?, ?, 'UPDATE_CATEGORY', ?, ?, ?, ?, 'Főkategória módosítva')
+    """, (admin["sub"], admin["email"], admin["name"], cat_key, req.title, existing["title"], req.title))
+
+    conn.commit()
+    conn.close()
+    return {"status": "success", "message": "Főkategória sikeresen frissítve."}
+
+@app.delete("/api/admin/categories/{cat_key}")
+async def api_admin_delete_category(cat_key: str, authorization: Optional[str] = Header(None)):
+    admin = get_current_admin(authorization)
+    conn = get_db_connection()
+
+    existing = conn.execute("SELECT key, title FROM taxonomy_categories WHERE key = ?", (cat_key,)).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Főkategória nem található.")
+
+    # A kategóriában lévő termékeket áttesszük egyébbe
+    conn.execute("UPDATE products SET main_category = 'egyeb', sub_category = 'egyeb' WHERE main_category = ?", (cat_key,))
+    conn.execute("DELETE FROM taxonomy_subcategories WHERE main_key = ?", (cat_key,))
+    conn.execute("DELETE FROM taxonomy_categories WHERE key = ?", (cat_key,))
+
+    conn.execute("""
+        INSERT INTO category_audit_logs
+        (user_id, user_email, user_name, action, entity_id, entity_name, old_value, new_value, note)
+        VALUES (?, ?, ?, 'DELETE_CATEGORY', ?, ?, ?, NULL, 'Főkategória törölve')
+    """, (admin["sub"], admin["email"], admin["name"], cat_key, existing["title"], existing["title"]))
+
+    conn.commit()
+    conn.close()
+    return {"status": "success", "message": f"'{existing['title']}' főkategória és alkategóriái törölve."}
+
+@app.post("/api/admin/subcategories")
+async def api_admin_create_subcategory(req: CreateTaxonomySubcategoryRequest, authorization: Optional[str] = Header(None)):
+    admin = get_current_admin(authorization)
+    conn = get_db_connection()
+
+    main_key = req.main_key.strip().lower()
+    sub_key = req.sub_key.strip().lower()
+    title = req.title.strip()
+
+    main_cat = conn.execute("SELECT key, title FROM taxonomy_categories WHERE key = ?", (main_key,)).fetchone()
+    if not main_cat:
+        conn.close()
+        raise HTTPException(status_code=404, detail="A megadott főkategória nem található.")
+
+    existing = conn.execute("SELECT sub_key FROM taxonomy_subcategories WHERE main_key = ? AND sub_key = ?", (main_key, sub_key)).fetchone()
+    if existing:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Ez az alkategória azonosító már létezik a főkategóriában.")
+
+    conn.execute("""
+        INSERT INTO taxonomy_subcategories (main_key, sub_key, title, sort_order)
+        VALUES (?, ?, ?, ?)
+    """, (main_key, sub_key, title, req.sort_order or 100))
+
+    conn.execute("""
+        INSERT INTO category_audit_logs
+        (user_id, user_email, user_name, action, entity_id, entity_name, old_value, new_value, note)
+        VALUES (?, ?, ?, 'CREATE_SUBCATEGORY', ?, ?, NULL, ?, 'Új alkategória hozzáadva')
+    """, (admin["sub"], admin["email"], admin["name"], f"{main_key}/{sub_key}", title, title))
+
+    conn.commit()
+    conn.close()
+    return {"status": "success", "message": f"'{title}' alkategória sikeresen hozzáadva."}
+
+@app.put("/api/admin/subcategories/{main_key}/{sub_key}")
+async def api_admin_update_subcategory(main_key: str, sub_key: str, req: UpdateTaxonomySubcategoryRequest, authorization: Optional[str] = Header(None)):
+    admin = get_current_admin(authorization)
+    conn = get_db_connection()
+
+    existing = conn.execute("SELECT title, sort_order FROM taxonomy_subcategories WHERE main_key = ? AND sub_key = ?", (main_key, sub_key)).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Alkategória nem található.")
+
+    conn.execute("""
+        UPDATE taxonomy_subcategories
+        SET title = ?, sort_order = ?
+        WHERE main_key = ? AND sub_key = ?
+    """, (req.title.strip(), req.sort_order, main_key, sub_key))
+
+    conn.execute("""
+        INSERT INTO category_audit_logs
+        (user_id, user_email, user_name, action, entity_id, entity_name, old_value, new_value, note)
+        VALUES (?, ?, ?, 'UPDATE_SUBCATEGORY', ?, ?, ?, ?, 'Alkategória módosítva')
+    """, (admin["sub"], admin["email"], admin["name"], f"{main_key}/{sub_key}", req.title, existing["title"], req.title))
+
+    conn.commit()
+    conn.close()
+    return {"status": "success", "message": "Alkategória sikeresen frissítve."}
+
+@app.delete("/api/admin/subcategories/{main_key}/{sub_key}")
+async def api_admin_delete_subcategory(main_key: str, sub_key: str, authorization: Optional[str] = Header(None)):
+    admin = get_current_admin(authorization)
+    conn = get_db_connection()
+
+    existing = conn.execute("SELECT title FROM taxonomy_subcategories WHERE main_key = ? AND sub_key = ?", (main_key, sub_key)).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Alkategória nem található.")
+
+    # A törölt alkategóriájú termékeket áttesszük az egyébbe
+    conn.execute("UPDATE products SET sub_category = 'egyeb' WHERE main_category = ? AND sub_category = ?", (main_key, sub_key))
+    conn.execute("DELETE FROM taxonomy_subcategories WHERE main_key = ? AND sub_key = ?", (main_key, sub_key))
+
+    conn.execute("""
+        INSERT INTO category_audit_logs
+        (user_id, user_email, user_name, action, entity_id, entity_name, old_value, new_value, note)
+        VALUES (?, ?, ?, 'DELETE_SUBCATEGORY', ?, ?, ?, NULL, 'Alkategória törölve')
+    """, (admin["sub"], admin["email"], admin["name"], f"{main_key}/{sub_key}", existing["title"], existing["title"]))
+
+    conn.commit()
+    conn.close()
+    return {"status": "success", "message": f"'{existing['title']}' alkategória törölve."}
+
 @app.get("/api/price-audit-logs")
 async def api_audit_logs(
     product_id: Optional[str] = None, 
@@ -347,8 +601,10 @@ def haversine_km(lat1, lon1, lat2, lon2):
 
 @app.get("/api/categories")
 async def api_categories():
-    from categories import TAXONOMY_TREE
+    from categories import get_taxonomy_tree_from_db
     conn = get_db_connection()
+    taxonomy_tree = get_taxonomy_tree_from_db(conn)
+
     # Statisztika lekérése kategóriánként és alkategóriánként
     stats_rows = conn.execute("""
         SELECT main_category, sub_category, COUNT(*) as cnt
@@ -368,7 +624,7 @@ async def api_categories():
         main_totals[mc] = main_totals.get(mc, 0) + cnt
 
     result = []
-    for mc_key, mc_data in TAXONOMY_TREE.items():
+    for mc_key, mc_data in taxonomy_tree.items():
         sub_list = []
         for sc_key, sc_title in mc_data["subs"].items():
             sc_count = counts.get(mc_key, {}).get(sc_key, 0)
@@ -382,6 +638,7 @@ async def api_categories():
             "key": mc_key,
             "title": mc_data["title"],
             "icon": mc_data["icon"],
+            "sort_order": mc_data.get("sort_order", 0),
             "total_count": main_totals.get(mc_key, 0),
             "subs": sub_list
         })
@@ -436,7 +693,8 @@ async def api_products_catalog(
     """
     rows = conn.execute(fetch_sql, params + [page_size, offset]).fetchall()
 
-    from categories import TAXONOMY_TREE
+    from categories import get_taxonomy_tree_from_db
+    taxonomy_tree = get_taxonomy_tree_from_db(conn)
     items = []
     for r in rows:
         pid = r["id"]
@@ -460,8 +718,8 @@ async def api_products_catalog(
 
         mc = r["main_category"]
         sc = r["sub_category"]
-        mc_title = TAXONOMY_TREE.get(mc, {}).get("title", mc or "")
-        sc_title = TAXONOMY_TREE.get(mc, {}).get("subs", {}).get(sc, sc or "")
+        mc_title = taxonomy_tree.get(mc, {}).get("title", mc or "")
+        sc_title = taxonomy_tree.get(mc, {}).get("subs", {}).get(sc, sc or "")
 
         items.append({
             "id": pid,

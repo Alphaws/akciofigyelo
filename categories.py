@@ -108,6 +108,51 @@ TAXONOMY_TREE = {
     }
 }
 
+def sync_taxonomy_to_db(conn):
+    """
+    Kezdeti szinkronizáció: ha a taxonomy_categories tábla üres, feltölti a TAXONOMY_TREE adataival.
+    """
+    row = conn.execute("SELECT COUNT(*) FROM taxonomy_categories").fetchone()
+    if row and row[0] == 0:
+        order = 0
+        for mc_key, mc_data in TAXONOMY_TREE.items():
+            order += 10
+            conn.execute("""
+                INSERT OR IGNORE INTO taxonomy_categories (key, title, icon, sort_order)
+                VALUES (?, ?, ?, ?)
+            """, (mc_key, mc_data["title"], mc_data.get("icon", "fa-solid fa-box"), order))
+            
+            sub_order = 0
+            for sc_key, sc_title in mc_data.get("subs", {}).items():
+                sub_order += 10
+                conn.execute("""
+                    INSERT OR IGNORE INTO taxonomy_subcategories (main_key, sub_key, title, sort_order)
+                    VALUES (?, ?, ?, ?)
+                """, (mc_key, sc_key, sc_title, sub_order))
+        conn.commit()
+
+def get_taxonomy_tree_from_db(conn) -> dict:
+    """
+    Visszaadja a taxonómia fát közvetlenül az adatbázisból (így azonnal tükrözi az admin által végzett bővítéseket és módosításokat).
+    """
+    sync_taxonomy_to_db(conn)
+    main_rows = conn.execute("SELECT key, title, icon, sort_order FROM taxonomy_categories ORDER BY sort_order ASC, title ASC").fetchall()
+    sub_rows = conn.execute("SELECT main_key, sub_key, title, sort_order FROM taxonomy_subcategories ORDER BY sort_order ASC, title ASC").fetchall()
+    
+    subs_by_main = {}
+    for sr in sub_rows:
+        subs_by_main.setdefault(sr["main_key"], {})[sr["sub_key"]] = sr["title"]
+        
+    tree = {}
+    for mr in main_rows:
+        tree[mr["key"]] = {
+            "title": mr["title"],
+            "icon": mr["icon"] or "fa-solid fa-box",
+            "sort_order": mr["sort_order"],
+            "subs": subs_by_main.get(mr["key"], {})
+        }
+    return tree
+
 KEYWORD_RULES = [
     # TOJAS
     ("tojas", "friss_tojas", ["tojas", "furjtojas", "tojasok"]),
