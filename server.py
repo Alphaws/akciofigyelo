@@ -235,6 +235,24 @@ async def api_shops(
     conn.close()
     return {"count": len(shops_list), "shops": shops_list[:limit]}
 
+def extract_validity_period(title: str, url: str = "") -> str:
+    import re
+    text = f"{title} {url}"
+    # Minta 1: év.hó.nap - hó.nap
+    m1 = re.search(r'(\d{4})[\.\s\-]+(\d{1,2})[\.\-](\d{1,2})\s*[-–]\s*(?:(\d{1,2})[\.\-])?(\d{1,2})', text)
+    if m1:
+        y, m1_m, d1, m2_m, d2 = m1.groups()
+        m2 = m2_m if m2_m else m1_m
+        return f"{y}.{int(m1_m):02d}.{int(d1):02d} – {y}.{int(m2):02d}.{int(d2):02d}"
+    
+    # Minta 2: egyetlen kezdőnap
+    m2 = re.search(r'(\d{4})[\.\s\-]+(\d{1,2})[\.\-](\d{1,2})', text)
+    if m2:
+        y, m, d = m2.groups()
+        return f"{y}.{int(m):02d}.{int(d):02d}-tól"
+
+    return "Aktuális heti akció"
+
 @app.get("/api/flyers")
 async def api_flyers(chain: Optional[str] = None):
     conn = get_db_connection()
@@ -249,6 +267,9 @@ async def api_flyers(chain: Optional[str] = None):
     flyers = []
     for r in rows:
         item = dict(r)
+        import html
+        item["title"] = html.unescape(item.get("title") or "").replace(" - Akciós-Újság.hu", "").strip()
+        item["validity"] = extract_validity_period(item["title"], item.get("url") or "")
         try:
             item["pages"] = json.loads(item.get("pages_json") or "[]")
         except:

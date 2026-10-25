@@ -306,7 +306,10 @@
             <!-- Flyer Modal Viewer -->
             <div id="flyer-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 hidden flex flex-col justify-between p-4">
                 <div class="flex items-center justify-between max-w-5xl mx-auto w-full pb-2 border-b border-slate-800">
-                    <div id="flyer-modal-title" class="text-sm font-bold text-white truncate max-w-md"></div>
+                    <div class="flex items-center gap-2 max-w-lg truncate">
+                        <div id="flyer-modal-title" class="text-sm font-bold text-white truncate"></div>
+                        <span id="flyer-modal-validity" class="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono hidden sm:inline-block"></span>
+                    </div>
                     <div class="flex items-center gap-3">
                         <span id="flyer-modal-counter" class="text-xs font-mono text-emerald-400">1 / 1</span>
                         <button onclick="closeFlyerModal()" class="text-slate-400 hover:text-white text-lg p-1">
@@ -788,16 +791,24 @@ kenyer`;
                 }
 
                 grid.innerHTML = allFlyers.map((fl, idx) => `
-                    <div onclick="openFlyerModal(${idx})" class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden cursor-pointer hover:border-emerald-500/50 hover:shadow-lg transition group">
-                        <div class="h-48 w-full bg-slate-950 overflow-hidden flex items-center justify-center relative">
-                            ${fl.thumbnail_url ? `<img src="${fl.thumbnail_url}" alt="${fl.title}" class="h-full w-full object-cover group-hover:scale-105 transition duration-300">` : '<i class="fa-solid fa-book text-slate-700 text-3xl"></i>'}
-                            <div class="absolute top-2 right-2 bg-slate-950/80 text-[10px] font-bold px-2 py-0.5 rounded text-emerald-400 border border-slate-700">
-                                ${fl.pages ? fl.pages.length : 0} oldal
+                    <div onclick="openFlyerModal(${idx})" class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden cursor-pointer hover:border-emerald-500/50 hover:shadow-lg transition group flex flex-col justify-between">
+                        <div>
+                            <div class="h-48 w-full bg-slate-950 overflow-hidden flex items-center justify-center relative">
+                                ${fl.thumbnail_url ? `<img src="${fl.thumbnail_url}" alt="${fl.title}" class="h-full w-full object-cover group-hover:scale-105 transition duration-300">` : '<i class="fa-solid fa-book text-slate-700 text-3xl"></i>'}
+                                <div class="absolute top-2 right-2 bg-slate-950/80 text-[10px] font-bold px-2 py-0.5 rounded text-emerald-400 border border-slate-700">
+                                    ${fl.pages ? fl.pages.length : 0} oldal
+                                </div>
+                            </div>
+                            <div class="p-2.5">
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">${fl.chain_name}</span>
+                                <div class="text-xs font-semibold text-slate-200 truncate mt-0.5" title="${fl.title}">${fl.title}</div>
                             </div>
                         </div>
-                        <div class="p-2.5">
-                            <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">${fl.chain_name}</span>
-                            <div class="text-xs font-semibold text-slate-200 truncate mt-0.5" title="${fl.title}">${fl.title}</div>
+                        <div class="px-2.5 pb-2.5 pt-0">
+                            <span class="inline-flex items-center text-[10px] text-amber-400/90 font-mono bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 truncate max-w-full">
+                                <i class="fa-regular fa-calendar-days mr-1 text-amber-400"></i>
+                                ${fl.validity || 'Heti akció'}
+                            </span>
                         </div>
                     </div>
                 `).join('');
@@ -811,6 +822,15 @@ kenyer`;
             if (!currentFlyer || !currentFlyer.pages || currentFlyer.pages.length === 0) return;
             currentFlyerPageIndex = 0;
             document.getElementById('flyer-modal-title').innerText = currentFlyer.title;
+            const validityBadge = document.getElementById('flyer-modal-validity');
+            if (validityBadge) {
+                if (currentFlyer.validity) {
+                    validityBadge.innerText = currentFlyer.validity;
+                    validityBadge.classList.remove('hidden');
+                } else {
+                    validityBadge.classList.add('hidden');
+                }
+            }
             updateFlyerModalPage();
             document.getElementById('flyer-modal').classList.remove('hidden');
         }
