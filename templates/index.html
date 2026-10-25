@@ -748,8 +748,11 @@
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
                     <!-- Image & Packaging Info -->
                     <div class="md:col-span-5 flex flex-col items-center">
-                        <div class="w-full h-48 bg-slate-950 rounded-2xl flex items-center justify-center p-3 border border-slate-800 overflow-hidden mb-3">
-                            <img id="detail-prod-img" src="" alt="Termékkép" class="h-full object-contain">
+                        <div onclick="openImageLightbox(document.getElementById('detail-prod-img').src, document.getElementById('detail-prod-title').innerText)" class="w-full h-48 bg-slate-950 rounded-2xl flex items-center justify-center p-3 border border-slate-800 overflow-hidden mb-3 group cursor-zoom-in relative">
+                            <img id="detail-prod-img" src="" alt="Termékkép" class="h-full object-contain group-hover:scale-105 transition duration-200">
+                            <div class="absolute bottom-2 right-2 bg-slate-900/80 backdrop-blur px-2 py-1 rounded-md text-[10px] text-slate-300 opacity-0 group-hover:opacity-100 transition flex items-center gap-1 border border-slate-700">
+                                <i class="fa-solid fa-expand text-emerald-400"></i> Nagyítás
+                            </div>
                         </div>
                         <div id="detail-packaging-box" class="w-full p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs space-y-1">
                             <div class="text-slate-400 flex justify-between">
@@ -894,6 +897,23 @@
                         Összevonás végrehajtása
                     </button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Global Image Lightbox Modal (Kép Nagyítás) -->
+        <div id="image-lightbox-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-[100] hidden flex flex-col items-center justify-center p-4 transition-opacity duration-300" onclick="closeImageLightbox(event)">
+            <div class="absolute top-4 right-5 flex items-center gap-3 z-10">
+                <a id="lightbox-open-external" href="#" target="_blank" rel="noopener" class="w-10 h-10 rounded-full bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center border border-slate-700 transition" title="Megnyitás új lapon">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                </a>
+                <button onclick="closeImageLightbox()" class="w-10 h-10 rounded-full bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center border border-slate-700 transition" title="Bezárás (Esc)">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <div class="max-w-4xl max-h-[85vh] flex flex-col items-center justify-center" onclick="event.stopPropagation()">
+                <img id="lightbox-img" src="" alt="Termékkép nagyban" class="max-h-[78vh] max-w-full object-contain rounded-2xl shadow-2xl border border-slate-800 bg-slate-950">
+                <div id="lightbox-caption" class="mt-3 text-center text-sm font-semibold text-slate-200 bg-slate-900/80 px-4 py-1.5 rounded-full border border-slate-800"></div>
             </div>
         </div>
                 <div class="flex flex-1 w-full gap-2 items-center">
@@ -1442,11 +1462,21 @@ kenyer`;
                            </div>`
                         : '';
 
+                    const safeImg = p.image_url ? p.image_url.replace(/'/g, "\\'") : '';
+                    const safeName = p.name ? p.name.replace(/'/g, "\\'") : '';
+
                     return `
                         <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col justify-between hover:border-slate-700 transition">
                             <div>
-                                <div onclick="openProductDetailsModal('${p.id}')" class="h-32 w-full bg-slate-950 rounded-lg flex items-center justify-center p-2 mb-2 overflow-hidden cursor-pointer hover:opacity-90 transition">
-                                    ${p.image_url ? `<img src="${p.image_url}" alt="${p.name}" class="h-full object-contain">` : '<i class="fa-solid fa-image text-slate-800 text-2xl"></i>'}
+                                <div class="h-32 w-full bg-slate-950 rounded-lg flex items-center justify-center p-2 mb-2 overflow-hidden relative group">
+                                    <div onclick="openProductDetailsModal('${p.id}')" class="h-full w-full flex items-center justify-center cursor-pointer">
+                                        ${p.image_url ? `<img src="${p.image_url}" alt="${p.name}" class="h-full object-contain group-hover:scale-105 transition duration-200">` : '<i class="fa-solid fa-image text-slate-800 text-2xl"></i>'}
+                                    </div>
+                                    ${p.image_url ? `
+                                        <button onclick="event.stopPropagation(); openImageLightbox('${safeImg}', '${safeName}')" class="absolute top-1.5 right-1.5 w-7 h-7 rounded-lg bg-slate-900/80 hover:bg-emerald-500 hover:text-slate-950 text-slate-400 opacity-0 group-hover:opacity-100 transition flex items-center justify-center border border-slate-700/60 shadow-md" title="Kép nagyítása">
+                                            <i class="fa-solid fa-expand text-xs"></i>
+                                        </button>
+                                    ` : ''}
                                 </div>
                                 <div class="flex flex-wrap gap-1 mb-1">
                                     ${catBadge}
@@ -2473,10 +2503,13 @@ kenyer`;
                         </span>
                     `).join(' ');
 
+                    const safePImg = p.image_url ? p.image_url.replace(/'/g, "\\'") : '';
+                    const safePName = p.name ? p.name.replace(/'/g, "\\'") : '';
+
                     return `
                         <div class="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition gap-2">
                             <div class="flex items-center gap-3">
-                                <div class="w-12 h-12 bg-slate-900 rounded-lg flex items-center justify-center p-1 overflow-hidden shrink-0">
+                                <div onclick="${p.image_url ? `openImageLightbox('${safePImg}', '${safePName}')` : ''}" class="w-12 h-12 bg-slate-900 rounded-lg flex items-center justify-center p-1 overflow-hidden shrink-0 ${p.image_url ? 'cursor-zoom-in hover:opacity-80' : ''}" title="${p.image_url ? 'Kép nagyítása' : ''}">
                                     ${p.image_url ? `<img src="${p.image_url}" class="h-full object-contain">` : '<i class="fa-solid fa-box text-slate-700"></i>'}
                                 </div>
                                 <div>
@@ -2654,6 +2687,40 @@ kenyer`;
                 alert('Hálózati hiba: ' + err.message);
             }
         }
+
+        // ==========================================
+        // IMAGE LIGHTBOX FUNCTIONS
+        // ==========================================
+        function openImageLightbox(imgSrc, caption = '') {
+            if (!imgSrc || imgSrc.includes('data:image/svg+xml') && imgSrc.length < 50) return;
+            const modal = document.getElementById('image-lightbox-modal');
+            const img = document.getElementById('lightbox-img');
+            const cap = document.getElementById('lightbox-caption');
+            const extLink = document.getElementById('lightbox-open-external');
+
+            img.src = imgSrc;
+            cap.innerText = caption || 'Termékkép';
+            extLink.href = imgSrc;
+
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeImageLightbox(e) {
+            if (e && e.target && e.target.closest('#lightbox-img')) return;
+            const modal = document.getElementById('image-lightbox-modal');
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const lightbox = document.getElementById('image-lightbox-modal');
+                if (lightbox && !lightbox.classList.contains('hidden')) {
+                    closeImageLightbox();
+                }
+            }
+        });
     </script>
 </body>
 </html>
