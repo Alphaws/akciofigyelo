@@ -5,8 +5,8 @@ services:
       dockerfile: Dockerfile
     container_name: akciofigyelo
     restart: unless-stopped
-    ports:
-      - "8097:8097"
+    expose:
+      - "8097"
     environment:
       - PORT=8097
       - HOST=0.0.0.0
