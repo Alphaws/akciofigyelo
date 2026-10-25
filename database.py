@@ -115,5 +115,40 @@ def init_db():
             prices_count INTEGER DEFAULT 0,
             message TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            password_hash TEXT,
+            google_id TEXT UNIQUE,
+            avatar_url TEXT,
+            role TEXT DEFAULT 'editor',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS price_audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            user_email TEXT NOT NULL,
+            user_name TEXT NOT NULL,
+            action TEXT NOT NULL, -- UPDATE_PRICE, CREATE_PRICE, DELETE_PRICE
+            product_id TEXT NOT NULL,
+            product_name TEXT,
+            chain_name TEXT NOT NULL,
+            old_amount REAL,
+            new_amount REAL,
+            old_price_type TEXT,
+            new_price_type TEXT,
+            note TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_audit_created ON price_audit_logs(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_audit_prod ON price_audit_logs(product_id);
+        CREATE INDEX IF NOT EXISTS idx_audit_user ON price_audit_logs(user_email);
         """)
     conn.close()

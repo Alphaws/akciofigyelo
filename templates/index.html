@@ -6,6 +6,7 @@
     <title>Akciófigyelő Pro & Bevásárlólista Kalkulátor</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scroll::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
@@ -49,11 +50,28 @@
                         <i class="fa-solid fa-location-dot"></i>
                         <span>Üzletkereső</span>
                     </button>
+                    <button id="nav-btn-audit" onclick="switchMainTab('audit')" class="px-3.5 py-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition flex items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                        <span>Ár Módosítások</span>
+                    </button>
                 </div>
 
-                <!-- Sync Action -->
-                <div class="hidden md:flex items-center gap-3">
-                    <button onclick="triggerSync()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-lg border border-slate-700 transition flex items-center gap-2 text-slate-300">
+                <!-- Auth & Sync Action -->
+                <div class="flex items-center gap-2 sm:gap-3">
+                    <div id="user-profile-section" class="flex items-center gap-2">
+                        <button onclick="openAuthModal()" id="btn-open-login" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm">
+                            <i class="fa-solid fa-right-to-bracket"></i>
+                            <span>Bejelentkezés</span>
+                        </button>
+                        <div id="logged-in-box" class="hidden flex items-center gap-2 bg-slate-950/80 border border-slate-800 rounded-xl px-2.5 py-1">
+                            <div id="user-avatar" class="w-6 h-6 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-xs font-bold overflow-hidden">U</div>
+                            <span id="user-name-display" class="text-xs font-semibold text-slate-200 max-w-[100px] truncate">Admin</span>
+                            <button onclick="logout()" class="text-slate-400 hover:text-red-400 text-xs p-1" title="Kijelentkezés">
+                                <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <button onclick="triggerSync()" class="hidden md:flex px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-lg border border-slate-700 transition items-center gap-2 text-slate-300">
                         <i class="fa-solid fa-arrows-rotate" id="sync-icon"></i>
                         <span>Frissítés</span>
                     </button>
@@ -356,8 +374,164 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- 4. TAB: STORE LOCATIONS & DISTANCE         -->
+        <!-- 5. TAB: PRICE AUDIT LOGS                   -->
         <!-- ========================================== -->
+        <section id="tab-audit" class="hidden space-y-6">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between shadow-lg">
+                <div>
+                    <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left text-emerald-400"></i>
+                        Ár Módosítási Napló & Audit Trail
+                    </h2>
+                    <p class="text-xs text-slate-400">Minden árfolyam- és akció-módosítás visszakereshetően rögzítve felhasználóval és időbélyeggel.</p>
+                </div>
+                <button onclick="loadAuditLogs()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 rounded-xl border border-slate-700 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-rotate"></i> Frissítés
+                </button>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead>
+                            <tr class="text-slate-400 border-b border-slate-800 bg-slate-950/60">
+                                <th class="p-3">Időpont</th>
+                                <th class="p-3">Módosító</th>
+                                <th class="p-3">Művelet</th>
+                                <th class="p-3">Termék</th>
+                                <th class="p-3">Áruház</th>
+                                <th class="p-3 text-right">Régi Ár</th>
+                                <th class="p-3 text-right">Új Ár</th>
+                                <th class="p-3">Megjegyzés</th>
+                            </tr>
+                        </thead>
+                        <tbody id="audit-tbody" class="divide-y divide-slate-800"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Edit Price Modal -->
+        <div id="price-edit-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-pen-to-square text-emerald-400"></i>
+                        Ár módosítása
+                    </h3>
+                    <button onclick="closePriceEditModal()" class="text-slate-400 hover:text-white text-lg">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">Termék</label>
+                        <div id="modal-edit-product-name" class="text-xs font-semibold text-slate-100 bg-slate-950 p-2.5 rounded-xl border border-slate-800"></div>
+                        <input type="hidden" id="modal-edit-product-id">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[11px] text-slate-400 mb-1">Áruházlánc</label>
+                            <select id="modal-edit-chain" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none">
+                                <option value="Aldi">Aldi</option>
+                                <option value="Lidl">Lidl</option>
+                                <option value="Spar">Spar</option>
+                                <option value="Penny">Penny</option>
+                                <option value="Tesco">Tesco</option>
+                                <option value="Auchan">Auchan</option>
+                                <option value="Príma">Príma</option>
+                                <option value="CBA">CBA</option>
+                                <option value="dm">dm</option>
+                                <option value="Rossmann">Rossmann</option>
+                                <option value="Müller">Müller</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-slate-400 mb-1">Új Ár (Ft)</label>
+                            <input type="number" id="modal-edit-amount" min="1" step="1" placeholder="pl. 899" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-emerald-400 font-mono font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[11px] text-slate-400 mb-1">Ár típusa</label>
+                            <select id="modal-edit-type" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none">
+                                <option value="NORMAL">Normál fogyasztói ár</option>
+                                <option value="DISCOUNTED">Akciós ár</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-slate-400 mb-1">Megjegyzés / Indoklás</label>
+                            <input type="text" id="modal-edit-note" placeholder="pl. akciós újságból" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button onclick="closePriceEditModal()" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition">
+                        Mégse
+                    </button>
+                    <button onclick="submitPriceEdit()" class="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20">
+                        Mentés és Naplózás
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Auth Modal (Email/Password & Google) -->
+        <div id="auth-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h3 id="auth-modal-title" class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-user-lock text-emerald-400"></i>
+                        <span>Bejelentkezés</span>
+                    </h3>
+                    <button onclick="closeAuthModal()" class="text-slate-400 hover:text-white text-lg">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- Google Sign-In Container -->
+                <div class="space-y-2">
+                    <div id="google-btn-container" class="flex justify-center w-full"></div>
+                    <div class="relative flex py-2 items-center">
+                        <div class="flex-grow border-t border-slate-800"></div>
+                        <span class="flex-shrink mx-3 text-[11px] text-slate-500">vagy e-maillel</span>
+                        <div class="flex-grow border-t border-slate-800"></div>
+                    </div>
+                </div>
+
+                <!-- Form Fields -->
+                <form onsubmit="handleAuthSubmit(event)" class="space-y-3">
+                    <div id="auth-name-group" class="hidden">
+                        <label class="block text-[11px] text-slate-400 mb-1">Név</label>
+                        <input type="text" id="auth-name-input" placeholder="Kovács János" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">E-mail cím</label>
+                        <input type="email" id="auth-email-input" required placeholder="admin@akcio.vane.hu" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">Jelszó</label>
+                        <input type="password" id="auth-password-input" required placeholder="••••••••" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                    </div>
+
+                    <div id="auth-error-msg" class="text-xs text-red-400 hidden bg-red-500/10 border border-red-500/20 p-2 rounded-lg"></div>
+
+                    <button type="submit" id="auth-submit-btn" class="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20">
+                        Bejelentkezés
+                    </button>
+                </form>
+
+                <div class="text-center pt-2">
+                    <button type="button" onclick="toggleAuthMode()" id="auth-toggle-btn" class="text-xs text-emerald-400 hover:underline">
+                        Nincs még fiókod? Regisztráció
+                    </button>
+                </div>
+            </div>
+        </div>
         <section id="tab-shops" class="hidden space-y-6">
             <!-- Filter Bar -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between shadow-lg">
@@ -433,15 +607,17 @@
 
         function switchMainTab(tab) {
             currentTab = tab;
-            ['calculator', 'catalog', 'flyers', 'shops'].forEach(t => {
-                document.getElementById(`tab-${t}`).classList.add('hidden');
+            ['calculator', 'catalog', 'flyers', 'shops', 'audit'].forEach(t => {
+                const el = document.getElementById(`tab-${t}`);
+                if (el) el.classList.add('hidden');
                 const btn = document.getElementById(`nav-btn-${t}`);
-                btn.className = 'px-3.5 py-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition flex items-center gap-2';
+                if (btn) btn.className = 'px-3.5 py-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition flex items-center gap-2';
             });
 
-            document.getElementById(`tab-${tab}`).classList.remove('hidden');
+            const activeTab = document.getElementById(`tab-${tab}`);
+            if (activeTab) activeTab.classList.remove('hidden');
             const activeBtn = document.getElementById(`nav-btn-${tab}`);
-            activeBtn.className = 'px-3.5 py-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 transition flex items-center gap-2';
+            if (activeBtn) activeBtn.className = 'px-3.5 py-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 transition flex items-center gap-2';
 
             if (tab === 'catalog') {
                 if (categoriesData.length === 0) loadCategories();
@@ -449,6 +625,7 @@
             }
             if (tab === 'flyers') loadFlyers();
             if (tab === 'shops') loadShops();
+            if (tab === 'audit') loadAuditLogs();
         }
 
         function requestUserLocation(reloadShops = false) {
@@ -902,8 +1079,12 @@ kenyer`;
                                 <div class="text-xs font-bold text-slate-200 line-clamp-2 mb-1" title="${p.name}">${p.name}</div>
                                 <div class="text-[10px] text-slate-500 mb-2 truncate">${p.main_category_title ? p.main_category_title + ' • ' : ''}${p.unit || ''}</div>
                             </div>
-                            <div class="bg-slate-950/80 rounded-lg p-2 border border-slate-800/80">
+                            <div class="bg-slate-950/80 rounded-lg p-2 border border-slate-800/80 space-y-1">
                                 ${priceList || '<div class="text-[10px] text-slate-500">Nincs rögzített ár</div>'}
+                                <button onclick="openPriceEditModal('${p.id}', '${p.name.replace(/'/g, "\\'")}')" class="w-full mt-2 py-1 px-2 rounded bg-slate-900 hover:bg-slate-800 text-[11px] text-emerald-400 font-semibold border border-slate-800 hover:border-emerald-500/40 transition flex items-center justify-center gap-1.5">
+                                    <i class="fa-solid fa-pen-to-square text-[10px]"></i>
+                                    <span>Ár módosítása / hozzáadása</span>
+                                </button>
                             </div>
                         </div>
                     `;
@@ -1072,6 +1253,278 @@ kenyer`;
                 alert('Hiba a szinkronizáció indításakor: ' + err);
             } finally {
                 setTimeout(() => icon.classList.remove('fa-spin'), 2000);
+            }
+        }
+        // --- 5. AUTH & PRICE EDITING & AUDIT LOGS ---
+        let authToken = localStorage.getItem('akcio_auth_token');
+        let currentUser = null;
+        let authMode = 'login'; // 'login' or 'register'
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initAuthStatus();
+            initGoogleAuth();
+        });
+
+        async function initAuthStatus() {
+            if (!authToken) {
+                renderAuthState(null);
+                return;
+            }
+            try {
+                const res = await fetch('/api/auth/me', {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    currentUser = data.user;
+                    renderAuthState(currentUser);
+                } else {
+                    logout();
+                }
+            } catch (err) {
+                console.error("Auth check hiba:", err);
+            }
+        }
+
+        function renderAuthState(user) {
+            const loginBtn = document.getElementById('btn-open-login');
+            const loggedInBox = document.getElementById('logged-in-box');
+            const userNameDisplay = document.getElementById('user-name-display');
+            const userAvatar = document.getElementById('user-avatar');
+
+            if (user) {
+                loginBtn.classList.add('hidden');
+                loggedInBox.classList.remove('hidden');
+                userNameDisplay.innerText = user.name || user.email;
+                if (user.avatar_url) {
+                    userAvatar.innerHTML = `<img src="${user.avatar_url}" class="w-full h-full object-cover">`;
+                } else {
+                    userAvatar.innerText = (user.name || user.email)[0].toUpperCase();
+                }
+            } else {
+                loginBtn.classList.remove('hidden');
+                loggedInBox.classList.add('hidden');
+            }
+        }
+
+        function logout() {
+            authToken = null;
+            currentUser = null;
+            localStorage.removeItem('akcio_auth_token');
+            renderAuthState(null);
+        }
+
+        function openAuthModal() {
+            document.getElementById('auth-modal').classList.remove('hidden');
+            document.getElementById('auth-error-msg').classList.add('hidden');
+        }
+
+        function closeAuthModal() {
+            document.getElementById('auth-modal').classList.add('hidden');
+        }
+
+        function toggleAuthMode() {
+            authMode = authMode === 'login' ? 'register' : 'login';
+            const titleEl = document.getElementById('auth-modal-title');
+            const nameGrp = document.getElementById('auth-name-group');
+            const submitBtn = document.getElementById('auth-submit-btn');
+            const toggleBtn = document.getElementById('auth-toggle-btn');
+            document.getElementById('auth-error-msg').classList.add('hidden');
+
+            if (authMode === 'register') {
+                titleEl.innerHTML = '<i class="fa-solid fa-user-plus text-emerald-400"></i><span>Regisztráció</span>';
+                nameGrp.classList.remove('hidden');
+                submitBtn.innerText = 'Fiók létrehozása';
+                toggleBtn.innerText = 'Már van fiókod? Bejelentkezés';
+            } else {
+                titleEl.innerHTML = '<i class="fa-solid fa-user-lock text-emerald-400"></i><span>Bejelentkezés</span>';
+                nameGrp.classList.add('hidden');
+                submitBtn.innerText = 'Bejelentkezés';
+                toggleBtn.innerText = 'Nincs még fiókod? Regisztráció';
+            }
+        }
+
+        async function handleAuthSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('auth-email-input').value.trim();
+            const password = document.getElementById('auth-password-input').value;
+            const name = document.getElementById('auth-name-input').value.trim();
+            const errorEl = document.getElementById('auth-error-msg');
+            errorEl.classList.add('hidden');
+
+            const url = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
+            const payload = authMode === 'login' ? { email, password } : { email, password, name };
+
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    errorEl.innerText = data.detail || 'Hiba történt a művelet során.';
+                    errorEl.classList.remove('hidden');
+                    return;
+                }
+
+                authToken = data.token;
+                currentUser = data.user;
+                localStorage.setItem('akcio_auth_token', authToken);
+                renderAuthState(currentUser);
+                closeAuthModal();
+                alert(`Sikeres bejelentkezés! Üdv, ${currentUser.name}!`);
+            } catch (err) {
+                errorEl.innerText = 'Hálózati hiba: ' + err.message;
+                errorEl.classList.remove('hidden');
+            }
+        }
+
+        async function initGoogleAuth() {
+            try {
+                const res = await fetch('/api/auth/config');
+                const config = await res.json();
+                if (config.google_client_id && window.google) {
+                    google.accounts.id.initialize({
+                        client_id: config.google_client_id,
+                        callback: handleGoogleCredentialResponse
+                    });
+                    google.accounts.id.renderButton(
+                        document.getElementById('google-btn-container'),
+                        { theme: 'outline', size: 'large', width: '100%', text: 'signin_with', locale: 'hu' }
+                    );
+                } else {
+                    document.getElementById('google-btn-container').innerHTML = `
+                        <div class="text-xs text-slate-500 text-center py-1">
+                            <i class="fa-brands fa-google mr-1"></i> Google bejelentkezés konfigurálva (.env: GOOGLE_CLIENT_ID)
+                        </div>
+                    `;
+                }
+            } catch (err) {
+                console.log("Google auth config betöltés:", err);
+            }
+        }
+
+        async function handleGoogleCredentialResponse(response) {
+            try {
+                const res = await fetch('/api/auth/google', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ credential: response.credential })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    alert('Google bejelentkezési hiba: ' + (data.detail || 'ismeretlen hiba'));
+                    return;
+                }
+                authToken = data.token;
+                currentUser = data.user;
+                localStorage.setItem('akcio_auth_token', authToken);
+                renderAuthState(currentUser);
+                closeAuthModal();
+                alert(`Sikeres Google bejelentkezés! Üdv, ${currentUser.name}!`);
+            } catch (err) {
+                alert('Hiba a Google hitelesítéskor: ' + err.message);
+            }
+        }
+
+        // Price Edit & Audit Log UI Logic
+        function openPriceEditModal(productId, productName) {
+            if (!authToken) {
+                openAuthModal();
+                alert('Ármódosításhoz kérjük jelentkezz be (pl. admin@akcio.vane.hu / admin1234 vagy regisztrálj)!');
+                return;
+            }
+            document.getElementById('modal-edit-product-id').value = productId;
+            document.getElementById('modal-edit-product-name').innerText = productName;
+            document.getElementById('modal-edit-amount').value = '';
+            document.getElementById('modal-edit-note').value = '';
+            document.getElementById('price-edit-modal').classList.remove('hidden');
+        }
+
+        function closePriceEditModal() {
+            document.getElementById('price-edit-modal').classList.add('hidden');
+        }
+
+        async function submitPriceEdit() {
+            const productId = document.getElementById('modal-edit-product-id').value;
+            const chainName = document.getElementById('modal-edit-chain').value;
+            const amount = parseFloat(document.getElementById('modal-edit-amount').value);
+            const priceType = document.getElementById('modal-edit-type').value;
+            const note = document.getElementById('modal-edit-note').value.trim();
+
+            if (!amount || amount <= 0) {
+                alert('Kérjük adj meg érvényes forint árat!');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/products/price', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        product_id: productId,
+                        chain_name: chainName,
+                        amount: amount,
+                        price_type: priceType,
+                        note: note
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    alert('Hiba az ármódosításkor: ' + (data.detail || 'ismeretlen hiba'));
+                    return;
+                }
+
+                alert(data.message);
+                closePriceEditModal();
+                filterCatalog(catalogPage);
+            } catch (err) {
+                alert('Hálózati hiba: ' + err.message);
+            }
+        }
+
+        async function loadAuditLogs() {
+            const tbody = document.getElementById('audit-tbody');
+            tbody.innerHTML = '<tr><td colspan="8" class="p-6 text-center text-slate-500 text-xs"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Módosítási napló betöltése...</td></tr>';
+            try {
+                const res = await fetch('/api/price-audit-logs?limit=50');
+                const data = await res.json();
+                const logs = data.logs || [];
+                if (logs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="p-6 text-center text-slate-500 text-xs">Még nem történt manuális ármódosítás.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = logs.map(l => {
+                    const actionBadge = l.action === 'CREATE_PRICE' 
+                        ? '<span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">Új ár</span>'
+                        : '<span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[10px] font-bold">Módosítás</span>';
+
+                    const oldStr = l.old_amount != null ? `${Number(l.old_amount).toLocaleString('hu-HU')} Ft` : '-';
+                    const newStr = `${Number(l.new_amount).toLocaleString('hu-HU')} Ft`;
+
+                    return `
+                        <tr class="hover:bg-slate-800/40 transition">
+                            <td class="p-3 text-slate-400 font-mono text-[11px] whitespace-nowrap">${l.created_at}</td>
+                            <td class="p-3">
+                                <span class="font-bold text-slate-200 block">${l.user_name}</span>
+                                <span class="text-[10px] text-slate-500 font-mono">${l.user_email}</span>
+                            </td>
+                            <td class="p-3">${actionBadge}</td>
+                            <td class="p-3 font-medium text-slate-200 max-w-xs truncate" title="${l.product_name}">${l.product_name || l.product_id}</td>
+                            <td class="p-3 font-semibold text-emerald-400">${l.chain_name}</td>
+                            <td class="p-3 text-right text-slate-500 line-through font-mono">${oldStr}</td>
+                            <td class="p-3 text-right text-emerald-400 font-bold font-mono">${newStr}</td>
+                            <td class="p-3 text-slate-400 italic">${l.note || '-'}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-red-400 text-xs">Hiba a napló betöltésekor: ${err}</td></tr>`;
             }
         }
     </script>

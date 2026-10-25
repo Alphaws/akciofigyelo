@@ -2,17 +2,21 @@ import os
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, BackgroundTasks, Request, Query
+from fastapi import FastAPI, BackgroundTasks, Request, Query, Header, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
-from typing import Optional, List
+from pydantic import BaseModel, EmailStr
+from typing import Optional, List, Dict, Any
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from database import init_db, get_db_connection
 from crawler import run_full_crawler
 from calculator import evaluate_shopping_list, search_products_for_query
+from auth import (
+    hash_password, verify_password, create_access_token, 
+    verify_access_token, verify_google_id_token, GOOGLE_CLIENT_ID
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("akciofigyelo")
@@ -59,6 +63,235 @@ class ShoppingListRequest(BaseModel):
 
 class ParseListRequest(BaseModel):
     shopping_list: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class RegisterRequest(BaseModel):
+    email: str
+    name: str
+    password: str
+
+class GoogleAuthRequest(BaseModel):
+    credential: str
+
+class UpdatePriceRequest(BaseModel):
+    product_id: str
+    chain_name: str
+    amount: float
+    price_type: Optional[str] = "NORMAL"
+    note: Optional[str] = ""
+
+def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bejelentkezés szükséges a művelethez.")
+    token = authorization.split(" ", 1)[1]
+    payload = verify_access_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Érvénytelen vagy lejárt munkamenet.")
+    return payload
+
+@app.get("/api/auth/config")
+async def api_auth_config():
+    return {
+        "google_client_id": GOOGLE_CLIENT_ID or ""
+    }
+
+@app.post("/api/auth/register")
+async def api_register(req: RegisterRequest):
+    email = req.email.strip().lower()
+    name = req.name.strip()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Érvénytelen e-mail cím.")
+    if len(req.password) < 6:
+        raise HTTPException(status_code=400, detail="A jelszónak legalább 6 karakterből kell állnia.")
+
+    conn = get_db_connection()
+    existing = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+    if existing:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Ez az e-mail cím már regisztrálva van.")
+
+    pwd_hash = hash_password(req.password)
+    cur = conn.execute("""
+        INSERT INTO users (email, name, password_hash, role)
+        VALUES (?, ?, ?, 'editor')
+    """, (email, name or email.split("@")[0], pwd_hash))
+    user_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+
+    token = create_access_token(user_id, email, name, role="editor")
+    return {
+        "token": token,
+        "user": {
+            "id": user_id,
+            "email": email,
+            "name": name,
+            "role": "editor"
+        }
+    }
+
+@app.post("/api/auth/login")
+async def api_login(req: LoginRequest):
+    email = req.email.strip().lower()
+    conn = get_db_connection()
+    user = conn.execute("SELECT id, email, name, password_hash, role, avatar_url FROM users WHERE email = ?", (email,)).fetchone()
+    conn.close()
+
+    if not user or not user["password_hash"] or not verify_password(req.password, user["password_hash"]):
+        raise HTTPException(status_code=400, detail="Hibás e-mail cím vagy jelszó.")
+
+    token = create_access_token(user["id"], user["email"], user["name"], role=user["role"])
+    return {
+        "token": token,
+        "user": {
+            "id": user["id"],
+            "email": user["email"],
+            "name": user["name"],
+            "role": user["role"],
+            "avatar_url": user["avatar_url"]
+        }
+    }
+
+@app.post("/api/auth/google")
+async def api_google_login(req: GoogleAuthRequest):
+    g_info = await verify_google_id_token(req.credential)
+    if not g_info:
+        raise HTTPException(status_code=400, detail="Érvénytelen Google fiók azonosítás.")
+
+    email = g_info["email"]
+    name = g_info["name"]
+    google_id = g_info["google_id"]
+    avatar = g_info.get("avatar_url", "")
+
+    conn = get_db_connection()
+    user = conn.execute("SELECT id, email, name, role, avatar_url FROM users WHERE email = ? OR google_id = ?", (email, google_id)).fetchone()
+    if user:
+        user_id = user["id"]
+        # Update google_id and avatar if missing
+        conn.execute("UPDATE users SET google_id = ?, avatar_url = COALESCE(avatar_url, ?) WHERE id = ?", (google_id, avatar, user_id))
+        conn.commit()
+        role = user["role"]
+        u_name = user["name"]
+    else:
+        cur = conn.execute("""
+            INSERT INTO users (email, name, google_id, avatar_url, role)
+            VALUES (?, ?, ?, ?, 'editor')
+        """, (email, name, google_id, avatar))
+        user_id = cur.lastrowid
+        conn.commit()
+        role = "editor"
+        u_name = name
+
+    conn.close()
+    token = create_access_token(user_id, email, u_name, role=role)
+    return {
+        "token": token,
+        "user": {
+            "id": user_id,
+            "email": email,
+            "name": u_name,
+            "role": role,
+            "avatar_url": avatar
+        }
+    }
+
+@app.get("/api/auth/me")
+async def api_me(user: Dict[str, Any] = None, authorization: Optional[str] = Header(None)):
+    current_u = get_current_user(authorization)
+    conn = get_db_connection()
+    row = conn.execute("SELECT id, email, name, role, avatar_url FROM users WHERE id = ?", (current_u["sub"],)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Felhasználó nem található.")
+    return {"user": dict(row)}
+
+@app.post("/api/products/price")
+async def api_update_price(req: UpdatePriceRequest, authorization: Optional[str] = Header(None)):
+    user = get_current_user(authorization)
+    conn = get_db_connection()
+
+    # Ellenőrizzük a terméket
+    product = conn.execute("SELECT id, name FROM products WHERE id = ?", (req.product_id,)).fetchone()
+    if not product:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Termék nem található.")
+
+    # Meglévő ár keresése
+    existing_price = conn.execute("""
+        SELECT id, amount, price_type FROM prices 
+        WHERE product_id = ? AND chain_name = ?
+    """, (req.product_id, req.chain_name)).fetchone()
+
+    old_amount = existing_price["amount"] if existing_price else None
+    old_type = existing_price["price_type"] if existing_price else None
+    action = "UPDATE_PRICE" if existing_price else "CREATE_PRICE"
+
+    if existing_price:
+        conn.execute("""
+            UPDATE prices
+            SET amount = ?, price_type = ?, unit_amount = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (req.amount, req.price_type, req.amount, existing_price["id"]))
+    else:
+        chain_id = f"{req.chain_name.lower()}-manual"
+        conn.execute("""
+            INSERT INTO prices (product_id, chain_id, chain_name, price_type, amount, unit_amount, same_amount_everywhere, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+        """, (req.product_id, chain_id, req.chain_name, req.price_type, req.amount, req.amount))
+
+    # Audit log bejegyzés létrehozása
+    conn.execute("""
+        INSERT INTO price_audit_logs 
+        (user_id, user_email, user_name, action, product_id, product_name, chain_name, old_amount, new_amount, old_price_type, new_price_type, note)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        user["sub"], user["email"], user["name"], action, 
+        req.product_id, product["name"], req.chain_name, 
+        old_amount, req.amount, old_type, req.price_type, req.note or ""
+    ))
+
+    # Min unit price újraszámolása a terméken
+    min_price_row = conn.execute("SELECT MIN(amount) FROM prices WHERE product_id = ?", (req.product_id,)).fetchone()
+    if min_price_row and min_price_row[0] is not None:
+        conn.execute("UPDATE products SET min_unit_price = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (min_price_row[0], req.product_id))
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "success",
+        "message": f"Ár sikeresen rögzítve ({req.chain_name}: {req.amount:,.0f} Ft). Módosítás naplózva.",
+        "action": action
+    }
+
+@app.get("/api/price-audit-logs")
+async def api_audit_logs(
+    product_id: Optional[str] = None, 
+    limit: int = Query(50, ge=1, le=200),
+    authorization: Optional[str] = Header(None)
+):
+    # Napló megtekintése bejelentkezett felhasználóknak (vagy nyilvánosan az átláthatóságért)
+    conn = get_db_connection()
+    params = []
+    where = []
+    if product_id:
+        where.append("product_id = ?")
+        params.append(product_id)
+
+    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+    sql = f"""
+        SELECT id, user_email, user_name, action, product_id, product_name, chain_name, old_amount, new_amount, old_price_type, new_price_type, note, created_at
+        FROM price_audit_logs
+        {where_sql}
+        ORDER BY id DESC
+        LIMIT ?
+    """
+    rows = conn.execute(sql, params + [limit]).fetchall()
+    conn.close()
+    return {"logs": [dict(r) for r in rows]}
 
 @app.post("/api/parse-list")
 async def api_parse_list(req: ParseListRequest):
