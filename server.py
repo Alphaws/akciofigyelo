@@ -112,12 +112,57 @@ def haversine_km(lat1, lon1, lat2, lon2):
     c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
     return round(R * c, 2)
 
+@app.get("/api/categories")
+async def api_categories():
+    from categories import TAXONOMY_TREE
+    conn = get_db_connection()
+    # Statisztika lekérése kategóriánként és alkategóriánként
+    stats_rows = conn.execute("""
+        SELECT main_category, sub_category, COUNT(*) as cnt
+        FROM products
+        WHERE main_category IS NOT NULL
+        GROUP BY main_category, sub_category
+    """).fetchall()
+    conn.close()
+
+    counts = {}
+    main_totals = {}
+    for r in stats_rows:
+        mc = r["main_category"]
+        sc = r["sub_category"]
+        cnt = r["cnt"]
+        counts.setdefault(mc, {})[sc] = cnt
+        main_totals[mc] = main_totals.get(mc, 0) + cnt
+
+    result = []
+    for mc_key, mc_data in TAXONOMY_TREE.items():
+        sub_list = []
+        for sc_key, sc_title in mc_data["subs"].items():
+            sc_count = counts.get(mc_key, {}).get(sc_key, 0)
+            sub_list.append({
+                "key": sc_key,
+                "title": sc_title,
+                "count": sc_count
+            })
+        
+        result.append({
+            "key": mc_key,
+            "title": mc_data["title"],
+            "icon": mc_data["icon"],
+            "total_count": main_totals.get(mc_key, 0),
+            "subs": sub_list
+        })
+
+    return {"categories": result}
+
 @app.get("/api/products-catalog")
 async def api_products_catalog(
     page: int = Query(1, ge=1),
     page_size: int = Query(24, ge=1, le=100),
     q: Optional[str] = None,
     chain: Optional[str] = None,
+    main_category: Optional[str] = None,
+    sub_category: Optional[str] = None,
     category: Optional[str] = None
 ):
     conn = get_db_connection()
@@ -135,6 +180,14 @@ async def api_products_catalog(
         where.append("EXISTS (SELECT 1 FROM prices pr WHERE pr.product_id = p.id AND pr.chain_name = ?)")
         params.append(chain)
 
+    if main_category:
+        where.append("p.main_category = ?")
+        params.append(main_category)
+
+    if sub_category:
+        where.append("p.sub_category = ?")
+        params.append(sub_category)
+
     where_sql = f"WHERE {' AND '.join(where)}" if where else ""
     
     count_sql = f"SELECT COUNT(*) FROM products p {where_sql}"
@@ -142,7 +195,7 @@ async def api_products_catalog(
 
     offset = (page - 1) * page_size
     fetch_sql = f"""
-        SELECT p.id, p.name, p.category_path, p.unit, p.unit_title, p.packaging, p.image_url, p.min_unit_price
+        SELECT p.id, p.name, p.category_path, p.main_category, p.sub_category, p.unit, p.unit_title, p.packaging, p.image_url, p.min_unit_price
         FROM products p
         {where_sql}
         ORDER BY p.name ASC
@@ -150,6 +203,7 @@ async def api_products_catalog(
     """
     rows = conn.execute(fetch_sql, params + [page_size, offset]).fetchall()
 
+    from categories import TAXONOMY_TREE
     items = []
     for r in rows:
         pid = r["id"]
@@ -171,10 +225,19 @@ async def api_products_catalog(
                     "unit_amount": pr["unit_amount"]
                 }
 
+        mc = r["main_category"]
+        sc = r["sub_category"]
+        mc_title = TAXONOMY_TREE.get(mc, {}).get("title", mc or "")
+        sc_title = TAXONOMY_TREE.get(mc, {}).get("subs", {}).get(sc, sc or "")
+
         items.append({
             "id": pid,
             "name": r["name"],
             "category_path": r["category_path"],
+            "main_category": mc,
+            "sub_category": sc,
+            "main_category_title": mc_title,
+            "sub_category_title": sc_title,
             "unit": r["unit"],
             "unit_title": r["unit_title"],
             "packaging": r["packaging"],

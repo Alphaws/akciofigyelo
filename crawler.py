@@ -185,10 +185,13 @@ async def fetch_flyers(client: httpx.AsyncClient):
                                     import hashlib
                                     flyer_pid = f"flyer-{hashlib.md5((chain + '_' + p_name).encode()).hexdigest()[:12]}"
                                     
+                                    from categories import resolve_product_categories
+                                    main_c, sub_c = resolve_product_categories(p_name, f"akcios_ujsag/{chain.lower()}")
+
                                     conn.execute("""
-                                        INSERT OR REPLACE INTO products (id, name, category_path, unit, unit_title, packaging, image_url, min_unit_price, updated_at)
-                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                                    """, (flyer_pid, p_name, f"akcios_ujsag/{chain.lower()}", p_unit, "db", "1", thumb, p_price))
+                                        INSERT OR REPLACE INTO products (id, name, category_path, main_category, sub_category, unit, unit_title, packaging, image_url, min_unit_price, updated_at)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                                    """, (flyer_pid, p_name, f"akcios_ujsag/{chain.lower()}", main_c, sub_c, p_unit, "db", "1", thumb, p_price))
 
                                     conn.execute("""
                                         INSERT INTO prices (product_id, chain_id, chain_name, price_type, amount, unit_amount, same_amount_everywhere, updated_at)
@@ -287,10 +290,13 @@ async def run_full_crawler():
                     img = p.get("imageUrl")
                     min_unit_price = p.get("minUnitPrice")
 
+                    from categories import resolve_product_categories
+                    main_c, sub_c = resolve_product_categories(pname, cat_path or "")
+
                     conn.execute("""
-                        INSERT OR REPLACE INTO products (id, name, category_path, unit, unit_title, packaging, image_url, min_unit_price, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                    """, (pid, pname, cat_path, unit, unit_title, packaging, img, min_unit_price))
+                        INSERT OR REPLACE INTO products (id, name, category_path, main_category, sub_category, unit, unit_title, packaging, image_url, min_unit_price, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    """, (pid, pname, cat_path, main_c, sub_c, unit, unit_title, packaging, img, min_unit_price))
                     total_products += 1
 
                     for store in p.get("pricesOfChainStores", []):

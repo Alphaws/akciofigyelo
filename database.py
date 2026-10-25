@@ -72,6 +72,8 @@ def init_db():
             name TEXT NOT NULL,
             category_id INTEGER,
             category_path TEXT,
+            main_category TEXT,
+            sub_category TEXT,
             unit TEXT,
             unit_title TEXT,
             packaging TEXT,
@@ -95,6 +97,8 @@ def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
         CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category_id);
+        CREATE INDEX IF NOT EXISTS idx_products_main_cat ON products(main_category);
+        CREATE INDEX IF NOT EXISTS idx_products_sub_cat ON products(sub_category);
         CREATE INDEX IF NOT EXISTS idx_prices_prod ON prices(product_id);
         CREATE INDEX IF NOT EXISTS idx_prices_chain ON prices(chain_name);
         CREATE INDEX IF NOT EXISTS idx_shops_chain ON shops(chain_name);
