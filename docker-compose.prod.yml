@@ -1,0 +1,30 @@
+services:
+  akciofigyelo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: akciofigyelo
+    restart: unless-stopped
+    ports:
+      - "8097:8097"
+    environment:
+      - PORT=8097
+      - HOST=0.0.0.0
+      - DATA_DIR=/app/data
+      - CRAWL_CRON_HOUR=4
+    volumes:
+      - ./data:/app/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.akcio.rule=Host(`akcio.vane.hu`)"
+      - "traefik.http.routers.akcio.entrypoints=websecure"
+      - "traefik.http.routers.akcio.tls=true"
+      - "traefik.http.routers.akcio.tls.certresolver=myresolver"
+      - "traefik.http.services.akcio.loadbalancer.server.port=8097"
+    networks:
+      - traefik
+
+networks:
+  traefik:
+    external: true

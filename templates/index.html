@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Akciófigyelő Pro & Bevásárlólista Kalkulátor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(51, 65, 85, 0.8); border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans">
+    
+    <!-- Top Navigation Bar -->
+    <nav class="bg-slate-900 border-b border-slate-800 sticky top-0 z-50 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Brand -->
+                <div class="flex items-center space-x-3 cursor-pointer" onclick="switchMainTab('calculator')">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-xl shadow-lg shadow-emerald-500/20 text-slate-950">
+                        <i class="fa-solid fa-basket-shopping"></i>
+                    </div>
+                    <div>
+                        <div class="text-lg font-black tracking-tight text-white flex items-center gap-2">
+                            Akciófigyelő <span class="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/30">PRO</span>
+                        </div>
+                        <div class="text-[11px] text-slate-400">Aldi • Lidl • Spar • Penny • Tesco • Auchan • dm • Rossmann</div>
+                    </div>
+                </div>
+
+                <!-- Navigation Tabs -->
+                <div class="flex space-x-1 sm:space-x-2 text-xs sm:text-sm font-semibold">
+                    <button id="nav-btn-calculator" onclick="switchMainTab('calculator')" class="px-3.5 py-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 transition flex items-center gap-2">
+                        <i class="fa-solid fa-calculator"></i>
+                        <span>Kalkulátor</span>
+                    </button>
+                    <button id="nav-btn-catalog" onclick="switchMainTab('catalog')" class="px-3.5 py-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition flex items-center gap-2">
+                        <i class="fa-solid fa-boxes-stacked"></i>
+                        <span>Összes Termék</span>
+                    </button>
+                    <button id="nav-btn-flyers" onclick="switchMainTab('flyers')" class="px-3.5 py-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition flex items-center gap-2">
+                        <i class="fa-solid fa-book-open"></i>
+                        <span>Akciós Újságok</span>
+                    </button>
+                    <button id="nav-btn-shops" onclick="switchMainTab('shops')" class="px-3.5 py-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition flex items-center gap-2">
+                        <i class="fa-solid fa-location-dot"></i>
+                        <span>Üzletkereső</span>
+                    </button>
+                </div>
+
+                <!-- Sync Action -->
+                <div class="hidden md:flex items-center gap-3">
+                    <button onclick="triggerSync()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-medium rounded-lg border border-slate-700 transition flex items-center gap-2 text-slate-300">
+                        <i class="fa-solid fa-arrows-rotate" id="sync-icon"></i>
+                        <span>Frissítés</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+        
+        <!-- ========================================== -->
+        <!-- 1. TAB: SHOPPING LIST CALCULATOR           -->
+        <!-- ========================================== -->
+        <section id="tab-calculator" class="space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                
+                <!-- Left: Shopping List Editor -->
+                <div class="lg:col-span-5 space-y-4">
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                        <div class="flex items-center justify-between mb-3">
+                            <label class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                                <i class="fa-solid fa-list-check text-emerald-400"></i>
+                                Bevásárlólista
+                            </label>
+                            <button onclick="loadExampleList()" class="text-xs text-emerald-400 hover:underline">
+                                Példa lista
+                            </button>
+                        </div>
+
+                        <!-- Mode Switcher Tabs -->
+                        <div class="flex border-b border-slate-800 mb-4 text-xs font-semibold">
+                            <button id="tab-text-btn" onclick="switchInputMode('text')" class="py-2 px-3 border-b-2 border-emerald-400 text-emerald-400 flex items-center gap-1.5 transition">
+                                <i class="fa-solid fa-align-left"></i> Szabadszöveg
+                            </button>
+                            <button id="tab-table-btn" onclick="switchInputMode('table')" class="py-2 px-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition">
+                                <i class="fa-solid fa-table-list"></i> Táblázatos Szerkesztő <span id="table-count-badge" class="ml-1 bg-slate-800 text-[10px] px-1.5 py-0.2 rounded-full hidden">0</span>
+                            </button>
+                        </div>
+
+                        <!-- 1. Text Mode -->
+                        <div id="mode-text" class="space-y-3">
+                            <p class="text-xs text-slate-400">
+                                Írd be a tételeket (pl. <em>3 l tej 2.8</em>, <em>10 db tojas</em>, <em>2 trappista sajt</em>, <em>vaj</em>)!
+                            </p>
+                            <textarea id="shopping-list-input" rows="7" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono resize-none" placeholder="3 l tej 2.8&#10;10 db tojas&#10;vaj&#10;2 trappista sajt&#10;kenyer"></textarea>
+
+                            <div class="flex gap-2">
+                                <button onclick="parseToTable()" class="flex-1 py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs rounded-xl transition flex items-center justify-center gap-2 border border-slate-700">
+                                    <i class="fa-solid fa-arrow-right-arrow-left"></i>
+                                    <span>Átalakítás Táblázattá</span>
+                                </button>
+                                <button onclick="calculateList()" id="btn-calc" class="flex-1 py-2.5 px-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2">
+                                    <i class="fa-solid fa-calculator"></i>
+                                    <span>Számítás most</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 2. Table Mode -->
+                        <div id="mode-table" class="hidden space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs text-slate-400">Módosítsd a mennyiséget és egységet:</span>
+                                <button onclick="addRow()" class="text-xs text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1">
+                                    <i class="fa-solid fa-plus"></i> Új tétel
+                                </button>
+                            </div>
+
+                            <div class="overflow-y-auto max-h-80 border border-slate-800 rounded-xl bg-slate-950/60 p-2 custom-scroll">
+                                <table class="w-full text-left text-xs">
+                                    <thead>
+                                        <tr class="text-slate-400 border-b border-slate-800 pb-1">
+                                            <th class="pb-1.5 pl-1">Termék megnevezése</th>
+                                            <th class="pb-1.5 w-16 text-center">Menny.</th>
+                                            <th class="pb-1.5 w-20">Egység</th>
+                                            <th class="pb-1.5 w-7 text-center"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="table-items-body" class="divide-y divide-slate-800/60"></tbody>
+                                </table>
+                            </div>
+
+                            <div class="flex gap-2 pt-2">
+                                <button onclick="switchInputMode('text')" class="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-xl transition border border-slate-700">
+                                    Vissza szöveghez
+                                </button>
+                                <button onclick="calculateTableItems()" id="btn-calc-table" class="flex-1 py-2.5 px-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2">
+                                    <i class="fa-solid fa-calculator"></i>
+                                    <span>Kalkuláció táblázat alapján</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Geolocation / Location Helper -->
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+                        <div class="flex items-center gap-2.5">
+                            <i class="fa-solid fa-location-crosshairs text-emerald-400 text-base"></i>
+                            <div>
+                                <div class="text-xs font-bold text-slate-200">Közeli boltok távolsága</div>
+                                <div id="user-location-text" class="text-[11px] text-slate-400">Helyzet nincs megosztva</div>
+                            </div>
+                        </div>
+                        <button onclick="requestUserLocation()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg border border-slate-700 transition font-medium">
+                            Pozíció megadása
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Right: Results & Optimization Dashboard -->
+                <div class="lg:col-span-7 space-y-6">
+                    <div id="results-empty" class="bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-12 text-center">
+                        <i class="fa-solid fa-cart-shopping text-4xl text-slate-700 mb-3"></i>
+                        <h3 class="text-base font-semibold text-slate-300">Nincs még kalkulált lista</h3>
+                        <p class="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+                            Írd be a tételeket balra, és kattints a <strong>"Számítás most"</strong> gombra!
+                        </p>
+                    </div>
+
+                    <div id="results-container" class="hidden space-y-6">
+                        <!-- Summary Cards -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="bg-gradient-to-br from-emerald-950/60 to-slate-900 border border-emerald-500/40 rounded-2xl p-5 shadow-lg">
+                                <span class="text-xs uppercase font-bold text-emerald-400 tracking-wider">Legjobb 1 Boltos Vásárlás</span>
+                                <div class="flex items-baseline justify-between mt-2">
+                                    <h2 id="best-store-name" class="text-2xl font-black text-white">Lidl</h2>
+                                    <div id="best-store-total" class="text-2xl font-black text-emerald-400 font-mono">0 Ft</div>
+                                </div>
+                                <p id="best-store-sub" class="text-xs text-slate-400 mt-1">Minden tétel megtalálható</p>
+                            </div>
+
+                            <div class="bg-gradient-to-br from-teal-950/60 to-slate-900 border border-teal-500/40 rounded-2xl p-5 shadow-lg">
+                                <span class="text-xs uppercase font-bold text-teal-400 tracking-wider">Multi-bolt Szuperakció</span>
+                                <div class="flex items-baseline justify-between mt-2">
+                                    <h2 class="text-2xl font-black text-white">Optimális túra</h2>
+                                    <div id="best-split-total" class="text-2xl font-black text-teal-400 font-mono">0 Ft</div>
+                                </div>
+                                <p id="best-split-diff" class="text-xs text-slate-400 mt-1">Spórolás boltok megosztásával</p>
+                            </div>
+                        </div>
+
+                        <!-- Store Comparison Table -->
+                        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+                            <h3 class="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
+                                <i class="fa-solid fa-store text-emerald-400"></i>
+                                Boltok összehasonlítása (Végösszeg a teljes kosárra)
+                            </h3>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-sm">
+                                    <thead>
+                                        <tr class="text-xs text-slate-400 border-b border-slate-800">
+                                            <th class="pb-2">Áruházlánc</th>
+                                            <th class="pb-2">Legközelebbi üzlet</th>
+                                            <th class="pb-2">Tételek</th>
+                                            <th class="pb-2 text-right">Végösszeg</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="store-ranking-tbody" class="divide-y divide-slate-800 font-medium"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Item by Item Breakdown -->
+                        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
+                            <h3 class="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
+                                <i class="fa-solid fa-cubes text-teal-400"></i>
+                                Tételenkénti részletezés és árak
+                            </h3>
+                            <div id="items-breakdown-list" class="space-y-3"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- 2. TAB: FULL PRODUCTS CATALOGUE            -->
+        <!-- ========================================== -->
+        <section id="tab-catalog" class="hidden space-y-5">
+            <!-- Filter Bar -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row gap-3 items-center justify-between shadow-lg">
+                <div class="flex-1 w-full flex items-center gap-3">
+                    <div class="relative flex-1">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-500 text-xs"></i>
+                        <input type="text" id="catalog-search-input" placeholder="Termék keresése a teljes katalógusban..." onkeydown="if(event.key === 'Enter') filterCatalog(1)" class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                    </div>
+                    <select id="catalog-chain-select" onchange="filterCatalog(1)" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none">
+                        <option value="">Összes boltlánc</option>
+                        <option value="Aldi">Aldi</option>
+                        <option value="Lidl">Lidl</option>
+                        <option value="Spar">Spar</option>
+                        <option value="Penny">Penny</option>
+                        <option value="Tesco">Tesco</option>
+                        <option value="Auchan">Auchan</option>
+                        <option value="Príma">Príma</option>
+                        <option value="CBA">CBA</option>
+                        <option value="dm">dm</option>
+                        <option value="Rossmann">Rossmann</option>
+                        <option value="Müller">Müller</option>
+                    </select>
+                </div>
+                <div class="text-xs text-slate-400 font-medium">
+                    Összesen: <span id="catalog-total-count" class="text-emerald-400 font-bold">0</span> termék
+                </div>
+            </div>
+
+            <!-- Products Grid -->
+            <div id="catalog-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+
+            <!-- Pagination -->
+            <div class="flex items-center justify-between border-t border-slate-800 pt-4">
+                <button id="cat-prev-btn" onclick="prevCatalogPage()" class="px-3.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40 transition">
+                    <i class="fa-solid fa-chevron-left mr-1"></i> Előző
+                </button>
+                <span id="cat-page-indicator" class="text-xs text-slate-400 font-mono">Oldal: 1 / 1</span>
+                <button id="cat-next-btn" onclick="nextCatalogPage()" class="px-3.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40 transition">
+                    Következő <i class="fa-solid fa-chevron-right ml-1"></i>
+                </button>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- 3. TAB: FLYERS BROWSER                     -->
+        <!-- ========================================== -->
+        <section id="tab-flyers" class="hidden space-y-6">
+            <!-- Filter -->
+            <div class="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-2xl p-4">
+                <div>
+                    <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-newspaper text-emerald-400"></i>
+                        Aktuális Akciós Újságok és Katalógusok
+                    </h2>
+                    <p class="text-xs text-slate-400">Kattints bármelyik újságra a teljes oldalak lapozásához!</p>
+                </div>
+                <select id="flyers-chain-filter" onchange="loadFlyers(this.value)" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none">
+                    <option value="">Minden áruház</option>
+                    <option value="Príma">Príma</option>
+                    <option value="Aldi">Aldi</option>
+                    <option value="Lidl">Lidl</option>
+                    <option value="Spar">Spar</option>
+                    <option value="Penny">Penny</option>
+                    <option value="Tesco">Tesco</option>
+                    <option value="Auchan">Auchan</option>
+                </select>
+            </div>
+
+            <!-- Flyers Grid -->
+            <div id="flyers-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4"></div>
+
+            <!-- Flyer Modal Viewer -->
+            <div id="flyer-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 hidden flex flex-col justify-between p-4">
+                <div class="flex items-center justify-between max-w-5xl mx-auto w-full pb-2 border-b border-slate-800">
+                    <div id="flyer-modal-title" class="text-sm font-bold text-white truncate max-w-md"></div>
+                    <div class="flex items-center gap-3">
+                        <span id="flyer-modal-counter" class="text-xs font-mono text-emerald-400">1 / 1</span>
+                        <button onclick="closeFlyerModal()" class="text-slate-400 hover:text-white text-lg p-1">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex-1 flex items-center justify-center my-3 relative overflow-hidden">
+                    <button onclick="prevFlyerPage()" class="absolute left-2 sm:left-6 z-10 w-10 h-10 rounded-full bg-slate-900/80 hover:bg-slate-800 text-white flex items-center justify-center shadow-lg border border-slate-700">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <img id="flyer-modal-img" src="" alt="Flyer Page" class="max-h-[80vh] max-w-full object-contain rounded-lg shadow-2xl transition duration-200">
+                    <button onclick="nextFlyerPage()" class="absolute right-2 sm:right-6 z-10 w-10 h-10 rounded-full bg-slate-900/80 hover:bg-slate-800 text-white flex items-center justify-center shadow-lg border border-slate-700">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                </div>
+
+                <div class="max-w-xl mx-auto w-full text-center text-xs text-slate-500">
+                    Használd a nyilakat vagy a billentyűzet bal/jobb gombjait a lapozáshoz.
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- 4. TAB: STORE LOCATIONS & DISTANCE         -->
+        <!-- ========================================== -->
+        <section id="tab-shops" class="hidden space-y-6">
+            <!-- Filter Bar -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between shadow-lg">
+                <div class="flex flex-1 w-full gap-2 items-center">
+                    <input type="text" id="shop-city-input" placeholder="Város (pl. Budapest, Győr, Pécs, Szeged)..." onkeydown="if(event.key === 'Enter') loadShops()" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none">
+                    <select id="shop-chain-select" onchange="loadShops()" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none">
+                        <option value="">Összes lánc</option>
+                        <option value="Aldi">Aldi</option>
+                        <option value="Lidl">Lidl</option>
+                        <option value="Spar">Spar</option>
+                        <option value="Penny">Penny</option>
+                        <option value="Tesco">Tesco</option>
+                        <option value="Auchan">Auchan</option>
+                        <option value="Príma">Príma</option>
+                        <option value="CBA">CBA</option>
+                        <option value="dm">dm</option>
+                        <option value="Rossmann">Rossmann</option>
+                        <option value="Müller">Müller</option>
+                    </select>
+                    <button onclick="loadShops()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition">
+                        Szűrés
+                    </button>
+                </div>
+                <button onclick="requestUserLocation(true)" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-xs text-emerald-400 font-semibold rounded-xl border border-slate-700 transition flex items-center gap-1.5 whitespace-nowrap">
+                    <i class="fa-solid fa-crosshairs"></i> Legközelebbiek hozzám
+                </button>
+            </div>
+
+            <!-- Shops Table & List -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead>
+                            <tr class="text-slate-400 border-b border-slate-800 bg-slate-950/60">
+                                <th class="p-3">Lánc</th>
+                                <th class="p-3">Település</th>
+                                <th class="p-3">Cím</th>
+                                <th class="p-3">Nyitvatartás</th>
+                                <th class="p-3 text-right">Távolság</th>
+                                <th class="p-3 text-center">Térkép</th>
+                            </tr>
+                        </thead>
+                        <tbody id="shops-tbody" class="divide-y divide-slate-800"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        let currentTab = 'calculator';
+        let tableItems = [];
+        let catalogPage = 1;
+        let userLat = null;
+        let userLon = null;
+        let currentFlyer = null;
+        let currentFlyerPageIndex = 0;
+
+        // Auto check geolocation on load
+        window.addEventListener('DOMContentLoaded', () => {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    userLat = pos.coords.latitude;
+                    userLon = pos.coords.longitude;
+                    document.getElementById('user-location-text').innerText = 'Pozíció aktív (GPS)';
+                }, () => {});
+            }
+        });
+
+        function switchMainTab(tab) {
+            currentTab = tab;
+            ['calculator', 'catalog', 'flyers', 'shops'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.add('hidden');
+                const btn = document.getElementById(`nav-btn-${t}`);
+                btn.className = 'px-3.5 py-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition flex items-center gap-2';
+            });
+
+            document.getElementById(`tab-${tab}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`nav-btn-${tab}`);
+            activeBtn.className = 'px-3.5 py-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 transition flex items-center gap-2';
+
+            if (tab === 'catalog') filterCatalog(1);
+            if (tab === 'flyers') loadFlyers();
+            if (tab === 'shops') loadShops();
+        }
+
+        function requestUserLocation(reloadShops = false) {
+            if (!navigator.geolocation) {
+                alert('A böngésződ nem támogatja a helymeghatározást.');
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(pos => {
+                userLat = pos.coords.latitude;
+                userLon = pos.coords.longitude;
+                document.getElementById('user-location-text').innerText = 'Pozíció aktív (GPS)';
+                if (reloadShops) loadShops();
+            }, err => {
+                alert('Nem sikerült lekérni a pozíciót: ' + err.message);
+            });
+        }
+
+        // --- 1. CALCULATOR LOGIC ---
+        function loadExampleList() {
+            document.getElementById('shopping-list-input').value = 
+`3 l tej 2.8
+10 db tojas
+2 trappista sajt
+1.5 kg csirkemell
+vaj
+kenyer`;
+            if (!document.getElementById('mode-table').classList.contains('hidden')) {
+                parseToTable();
+            }
+        }
+
+        function switchInputMode(mode) {
+            const tabTextBtn = document.getElementById('tab-text-btn');
+            const tabTableBtn = document.getElementById('tab-table-btn');
+            const modeText = document.getElementById('mode-text');
+            const modeTable = document.getElementById('mode-table');
+
+            if (mode === 'table') {
+                tabTextBtn.className = 'py-2 px-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition';
+                tabTableBtn.className = 'py-2 px-3 border-b-2 border-emerald-400 text-emerald-400 flex items-center gap-1.5 transition';
+                modeText.classList.add('hidden');
+                modeTable.classList.remove('hidden');
+                if (tableItems.length === 0) parseToTable();
+            } else {
+                tabTableBtn.className = 'py-2 px-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition';
+                tabTextBtn.className = 'py-2 px-3 border-b-2 border-emerald-400 text-emerald-400 flex items-center gap-1.5 transition';
+                modeTable.classList.add('hidden');
+                modeText.classList.remove('hidden');
+                syncTableToText();
+            }
+        }
+
+        async function parseToTable() {
+            const raw = document.getElementById('shopping-list-input').value.trim();
+            if (!raw) {
+                tableItems = [];
+                renderTableRows();
+                switchInputMode('table');
+                return;
+            }
+            try {
+                const res = await fetch('/api/parse-list', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ shopping_list: raw })
+                });
+                const data = await res.json();
+                tableItems = data.items || [];
+                renderTableRows();
+                switchInputMode('table');
+            } catch (err) {
+                alert('Hiba az értelmezéskor: ' + err);
+            }
+        }
+
+        function renderTableRows() {
+            const tbody = document.getElementById('table-items-body');
+            const badge = document.getElementById('table-count-badge');
+            tbody.innerHTML = '';
+            badge.innerText = tableItems.length;
+            badge.classList.remove('hidden');
+
+            const units = ['db', 'kg', 'dkg', 'g', 'l', 'dl', 'ml', 'csomag', 'doboz'];
+
+            tableItems.forEach((it, idx) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-800/40 transition';
+                const unitOptions = units.map(u => 
+                    `<option value="${u}" ${it.unit === u ? 'selected' : ''}>${u}</option>`
+                ).join('');
+
+                tr.innerHTML = `
+                    <td class="py-1.5 pl-1 pr-2">
+                        <input type="text" value="${it.query}" onchange="updateItem(${idx}, 'query', this.value)" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                    </td>
+                    <td class="py-1.5 px-1 text-center">
+                        <input type="number" step="0.1" min="0.1" value="${it.quantity}" onchange="updateItem(${idx}, 'quantity', this.value)" class="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-xs text-slate-200 text-center focus:outline-none focus:border-emerald-500 font-mono">
+                    </td>
+                    <td class="py-1.5 px-1">
+                        <select onchange="updateItem(${idx}, 'unit', this.value)" class="w-full bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-xs text-slate-300 focus:outline-none focus:border-emerald-500">
+                            ${unitOptions}
+                        </select>
+                    </td>
+                    <td class="py-1.5 pr-1 text-center">
+                        <button onclick="removeItem(${idx})" class="text-slate-500 hover:text-red-400 p-1" title="Törlés">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateItem(index, field, value) {
+            if (field === 'quantity') {
+                tableItems[index].quantity = parseFloat(value) || 1.0;
+            } else {
+                tableItems[index][field] = value;
+            }
+        }
+
+        function removeItem(index) {
+            tableItems.splice(index, 1);
+            renderTableRows();
+        }
+
+        function addRow() {
+            tableItems.push({ query: '', quantity: 1.0, unit: 'db' });
+            renderTableRows();
+        }
+
+        function syncTableToText() {
+            if (tableItems.length === 0) return;
+            const textLines = tableItems
+                .filter(it => it.query.trim())
+                .map(it => `${it.quantity} ${it.unit} ${it.query}`.trim());
+            document.getElementById('shopping-list-input').value = textLines.join('\n');
+        }
+
+        async function calculateTableItems() {
+            syncTableToText();
+            const validItems = tableItems.filter(it => it.query.trim());
+            if (validItems.length === 0) {
+                alert('Kérlek adj meg legalább egy terméket!');
+                return;
+            }
+            runCalculate({ items: validItems });
+        }
+
+        async function calculateList() {
+            const text = document.getElementById('shopping-list-input').value.trim();
+            if (!text) {
+                alert('Kérlek írj be legalább egy tételt!');
+                return;
+            }
+            runCalculate({ shopping_list: text });
+        }
+
+        async function runCalculate(payload) {
+            const btn = document.getElementById('btn-calc');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Számítás...</span>';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/calculate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                renderResults(data);
+            } catch (err) {
+                alert('Hiba a kalkuláció során: ' + err);
+            } finally {
+                btn.innerHTML = '<i class="fa-solid fa-calculator"></i><span>Számítás most</span>';
+                btn.disabled = false;
+            }
+        }
+
+        async function renderResults(data) {
+            document.getElementById('results-empty').classList.add('hidden');
+            const container = document.getElementById('results-container');
+            container.classList.remove('hidden');
+
+            const ranked = data.ranked_stores || [];
+            const tbody = document.getElementById('store-ranking-tbody');
+            tbody.innerHTML = '';
+
+            // Lekérjük a legközelebbi boltokat minden láncból ha van helyzet
+            let nearestMap = {};
+            if (userLat && userLon) {
+                try {
+                    const shopRes = await fetch(`/api/shops?user_lat=${userLat}&user_lon=${userLon}&limit=200`);
+                    const shopData = await shopRes.json();
+                    (shopData.shops || []).forEach(s => {
+                        if (!nearestMap[s.chain_name]) {
+                            nearestMap[s.chain_name] = s;
+                        }
+                    });
+                } catch (e) {}
+            }
+
+            if (ranked.length > 0) {
+                const best = ranked[0];
+                document.getElementById('best-store-name').innerText = best.chain;
+                document.getElementById('best-store-total').innerText = best.total.toLocaleString('hu-HU') + ' Ft';
+                document.getElementById('best-store-sub').innerText = `${best.found_count}/${data.requested_items_count} tétel megtalálva`;
+
+                ranked.forEach((st, idx) => {
+                    const row = document.createElement('tr');
+                    const isWinner = idx === 0;
+                    row.className = isWinner ? 'bg-emerald-950/20 text-emerald-300 font-bold' : 'text-slate-300';
+                    
+                    const nearest = nearestMap[st.chain];
+                    const distInfo = nearest && nearest.distance_km != null 
+                        ? `<div class="text-[11px] text-emerald-400 font-mono">${nearest.distance_km} km <span class="text-slate-400 font-normal">(${nearest.city}, ${nearest.address})</span></div>`
+                        : '<div class="text-[11px] text-slate-500">Távolság ismeretlen</div>';
+
+                    row.innerHTML = `
+                        <td class="py-2.5 flex items-center gap-2">
+                            ${isWinner ? '<i class="fa-solid fa-crown text-amber-400 text-xs"></i>' : ''}
+                            ${st.chain}
+                        </td>
+                        <td class="py-2.5">${distInfo}</td>
+                        <td class="py-2.5">
+                            <span class="${st.is_complete ? 'text-emerald-400' : 'text-amber-400'} text-xs">
+                                ${st.found_count} / ${data.requested_items_count} tétel
+                            </span>
+                            ${st.missing_count > 0 ? `<span class="text-[10px] text-slate-500 block">Hiányzik: ${st.missing_items.join(', ')}</span>` : ''}
+                        </td>
+                        <td class="py-2.5 text-right font-mono text-sm">
+                            ${st.total.toLocaleString('hu-HU')} Ft
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+
+            // Multi-store split
+            const bestComb = data.best_combination;
+            if (bestComb && bestComb.total > 0) {
+                document.getElementById('best-split-total').innerText = bestComb.total.toLocaleString('hu-HU') + ' Ft';
+                if (ranked.length > 0) {
+                    const diff = ranked[0].total - bestComb.total;
+                    document.getElementById('best-split-diff').innerText = diff > 0 
+                        ? `Akár -${diff.toLocaleString('hu-HU')} Ft spórolás boltok megosztásával` 
+                        : 'Egy boltból is elérhető a minimum ár';
+                }
+            }
+
+            // Breakdown
+            const breakdown = document.getElementById('items-breakdown-list');
+            breakdown.innerHTML = (data.items || []).map(it => {
+                const storeBadges = Object.entries(it.store_prices || {}).map(([cname, pdata]) => `
+                    <div class="bg-slate-950 px-2.5 py-2 rounded-lg border border-slate-800 flex flex-col gap-1">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="font-semibold text-slate-300">${cname}</span>
+                            <div class="text-right">
+                                <div class="${pdata.price_type === 'DISCOUNTED' ? 'text-red-400 font-bold' : 'text-emerald-400'} font-mono text-sm">
+                                    ${pdata.total.toLocaleString('hu-HU')} Ft
+                                </div>
+                                <div class="text-[10px] text-slate-500 font-mono">
+                                    ${pdata.note ? pdata.note : `${pdata.price.toLocaleString('hu-HU')} Ft / db`}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-[10px] text-slate-400 truncate max-w-[200px]" title="${pdata.name}">${pdata.name}</div>
+                    </div>
+                `).join('');
+
+                return `
+                    <div class="p-3 bg-slate-950/80 rounded-xl border border-slate-800">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-bold text-slate-200">
+                                <i class="fa-solid fa-angle-right text-emerald-400 mr-1"></i>
+                                ${it.original}
+                            </span>
+                            <span class="text-xs px-2 py-0.5 rounded bg-slate-800 text-emerald-400 font-semibold font-mono">
+                                Mennyiség: ${it.quantity} ${it.unit || 'db'}
+                            </span>
+                        </div>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            ${storeBadges || '<div class="text-xs text-slate-500 col-span-full">Nincs találat ebben a kategóriában.</div>'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // --- 2. FULL CATALOGUE BROWSER ---
+        async function filterCatalog(page = 1) {
+            catalogPage = page;
+            const q = document.getElementById('catalog-search-input').value.trim();
+            const chain = document.getElementById('catalog-chain-select').value;
+            const grid = document.getElementById('catalog-grid');
+            grid.innerHTML = '<div class="col-span-full text-center py-10 text-slate-500 text-xs"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Katalógus betöltése...</div>';
+
+            try {
+                let url = `/api/products-catalog?page=${page}&page_size=24`;
+                if (q) url += `&q=${encodeURIComponent(q)}`;
+                if (chain) url += `&chain=${encodeURIComponent(chain)}`;
+
+                const res = await fetch(url);
+                const data = await res.json();
+
+                document.getElementById('catalog-total-count').innerText = data.total.toLocaleString('hu-HU');
+                document.getElementById('cat-page-indicator').innerText = `Oldal: ${data.page} / ${data.total_pages}`;
+                document.getElementById('cat-prev-btn').disabled = data.page <= 1;
+                document.getElementById('cat-next-btn').disabled = data.page >= data.total_pages;
+
+                if (!data.products || data.products.length === 0) {
+                    grid.innerHTML = '<div class="col-span-full text-center py-10 text-slate-500 text-xs">Nincs találat a szűrési feltételekre.</div>';
+                    return;
+                }
+
+                grid.innerHTML = data.products.map(p => {
+                    const priceList = Object.values(p.chain_prices).map(cp => `
+                        <div class="flex items-center justify-between text-xs py-1 border-b border-slate-900/60 last:border-0">
+                            <span class="text-slate-400 font-medium">${cp.chain}</span>
+                            <span class="${cp.price_type === 'DISCOUNTED' ? 'text-red-400 font-bold' : 'text-emerald-400'} font-mono">
+                                ${cp.amount.toLocaleString('hu-HU')} Ft
+                            </span>
+                        </div>
+                    `).join('');
+
+                    return `
+                        <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col justify-between hover:border-slate-700 transition">
+                            <div>
+                                <div class="h-32 w-full bg-slate-950 rounded-lg flex items-center justify-center p-2 mb-2 overflow-hidden">
+                                    ${p.image_url ? `<img src="${p.image_url}" alt="${p.name}" class="h-full object-contain">` : '<i class="fa-solid fa-image text-slate-800 text-2xl"></i>'}
+                                </div>
+                                <div class="text-xs font-bold text-slate-200 line-clamp-2 mb-1" title="${p.name}">${p.name}</div>
+                                <div class="text-[10px] text-slate-500 mb-2 truncate">${p.category_path || ''}</div>
+                            </div>
+                            <div class="bg-slate-950/80 rounded-lg p-2 border border-slate-800/80">
+                                ${priceList || '<div class="text-[10px] text-slate-500">Nincs rögzített ár</div>'}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (err) {
+                grid.innerHTML = `<div class="col-span-full text-center text-red-400 text-xs py-6">Hiba: ${err}</div>`;
+            }
+        }
+
+        function prevCatalogPage() {
+            if (catalogPage > 1) filterCatalog(catalogPage - 1);
+        }
+        function nextCatalogPage() {
+            filterCatalog(catalogPage + 1);
+        }
+
+        // --- 3. FLYERS BROWSER ---
+        let allFlyers = [];
+        async function loadFlyers(chain = '') {
+            const grid = document.getElementById('flyers-grid');
+            grid.innerHTML = '<div class="col-span-full text-center py-10 text-slate-500 text-xs"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Újságok betöltése...</div>';
+            try {
+                const url = chain ? `/api/flyers?chain=${encodeURIComponent(chain)}` : '/api/flyers';
+                const res = await fetch(url);
+                const data = await res.json();
+                allFlyers = data.flyers || [];
+
+                if (allFlyers.length === 0) {
+                    grid.innerHTML = '<div class="col-span-full text-center py-10 text-slate-500 text-xs">Nincs elérhető akciós újság.</div>';
+                    return;
+                }
+
+                grid.innerHTML = allFlyers.map((fl, idx) => `
+                    <div onclick="openFlyerModal(${idx})" class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden cursor-pointer hover:border-emerald-500/50 hover:shadow-lg transition group">
+                        <div class="h-48 w-full bg-slate-950 overflow-hidden flex items-center justify-center relative">
+                            ${fl.thumbnail_url ? `<img src="${fl.thumbnail_url}" alt="${fl.title}" class="h-full w-full object-cover group-hover:scale-105 transition duration-300">` : '<i class="fa-solid fa-book text-slate-700 text-3xl"></i>'}
+                            <div class="absolute top-2 right-2 bg-slate-950/80 text-[10px] font-bold px-2 py-0.5 rounded text-emerald-400 border border-slate-700">
+                                ${fl.pages ? fl.pages.length : 0} oldal
+                            </div>
+                        </div>
+                        <div class="p-2.5">
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">${fl.chain_name}</span>
+                            <div class="text-xs font-semibold text-slate-200 truncate mt-0.5" title="${fl.title}">${fl.title}</div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                grid.innerHTML = `<div class="col-span-full text-center text-red-400 text-xs py-6">Hiba: ${err}</div>`;
+            }
+        }
+
+        function openFlyerModal(index) {
+            currentFlyer = allFlyers[index];
+            if (!currentFlyer || !currentFlyer.pages || currentFlyer.pages.length === 0) return;
+            currentFlyerPageIndex = 0;
+            document.getElementById('flyer-modal-title').innerText = currentFlyer.title;
+            updateFlyerModalPage();
+            document.getElementById('flyer-modal').classList.remove('hidden');
+        }
+
+        function closeFlyerModal() {
+            document.getElementById('flyer-modal').classList.add('hidden');
+        }
+
+        function updateFlyerModalPage() {
+            const pages = currentFlyer.pages;
+            document.getElementById('flyer-modal-img').src = pages[currentFlyerPageIndex];
+            document.getElementById('flyer-modal-counter').innerText = `${currentFlyerPageIndex + 1} / ${pages.length} oldal`;
+        }
+
+        function prevFlyerPage() {
+            if (currentFlyerPageIndex > 0) {
+                currentFlyerPageIndex--;
+                updateFlyerModalPage();
+            }
+        }
+
+        function nextFlyerPage() {
+            if (currentFlyer && currentFlyerPageIndex < currentFlyer.pages.length - 1) {
+                currentFlyerPageIndex++;
+                updateFlyerModalPage();
+            }
+        }
+
+        document.addEventListener('keydown', e => {
+            if (document.getElementById('flyer-modal').classList.contains('hidden')) return;
+            if (e.key === 'ArrowLeft') prevFlyerPage();
+            if (e.key === 'ArrowRight') nextFlyerPage();
+            if (e.key === 'Escape') closeFlyerModal();
+        });
+
+        // --- 4. STORE LOCATIONS BROWSER ---
+        async function loadShops() {
+            const city = document.getElementById('shop-city-input').value.trim();
+            const chain = document.getElementById('shop-chain-select').value;
+            const tbody = document.getElementById('shops-tbody');
+            tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-500 text-xs"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Boltok betöltése...</td></tr>';
+
+            try {
+                let url = `/api/shops?limit=100`;
+                if (city) url += `&city=${encodeURIComponent(city)}`;
+                if (chain) url += `&chain=${encodeURIComponent(chain)}`;
+                if (userLat && userLon) url += `&user_lat=${userLat}&user_lon=${userLon}`;
+
+                const res = await fetch(url);
+                const data = await res.json();
+                const shops = data.shops || [];
+
+                if (shops.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-500 text-xs">Nem található üzlet a megadott feltételekkel.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = shops.map(s => {
+                    const distBadge = s.distance_km != null 
+                        ? `<span class="font-mono text-emerald-400 font-bold">${s.distance_km} km</span>`
+                        : '<span class="text-slate-600">-</span>';
+
+                    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.chain_name + ' ' + s.city + ' ' + s.address)}`;
+
+                    return `
+                        <tr class="hover:bg-slate-800/40 transition">
+                            <td class="p-3 font-semibold text-slate-200">${s.chain_name}</td>
+                            <td class="p-3 text-slate-300">${s.postal_code || ''} ${s.city}</td>
+                            <td class="p-3 text-slate-300">${s.address}</td>
+                            <td class="p-3 text-slate-400">${s.opening_time || 'Normál'}</td>
+                            <td class="p-3 text-right">${distBadge}</td>
+                            <td class="p-3 text-center">
+                                <a href="${mapsUrl}" target="_blank" class="text-slate-400 hover:text-emerald-400 p-1" title="Megnyitás Google Térképen">
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-red-400 text-xs">Hiba: ${err}</td></tr>`;
+            }
+        }
+
+        async function triggerSync() {
+            const icon = document.getElementById('sync-icon');
+            icon.classList.add('fa-spin');
+            try {
+                const res = await fetch('/api/sync', { method: 'POST' });
+                const data = await res.json();
+                alert(data.message);
+            } catch (err) {
+                alert('Hiba a szinkronizáció indításakor: ' + err);
+            } finally {
+                setTimeout(() => icon.classList.remove('fa-spin'), 2000);
+            }
+        }
+    </script>
+</body>
+</html>

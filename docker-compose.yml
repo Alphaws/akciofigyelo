@@ -1,0 +1,35 @@
+services:
+  akciofigyelo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: akciofigyelo
+    restart: unless-stopped
+    ports:
+      - "8097:8097"
+    environment:
+      - PORT=8097
+      - HOST=0.0.0.0
+      - DATA_DIR=/app/data
+      - CRAWL_CRON_HOUR=4
+    volumes:
+      - ./data:/app/data
+      - ./server.py:/app/server.py
+      - ./database.py:/app/database.py
+      - ./crawler.py:/app/crawler.py
+      - ./calculator.py:/app/calculator.py
+      - ./templates:/app/templates
+      - ./static:/app/static
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.akciofigyelo.rule=Host(`akciofigyelo.localhost`)"
+      - "traefik.http.routers.akciofigyelo.entrypoints=web,websecure"
+      - "traefik.http.routers.akciofigyelo.tls=true"
+      - "traefik.http.services.akciofigyelo.loadbalancer.server.port=8097"
+    networks:
+      - traefik_net
+
+networks:
+  traefik_net:
+    external: true
