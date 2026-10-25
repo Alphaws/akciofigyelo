@@ -29,6 +29,21 @@ HEADERS = {
     "Accept": "application/json, text/plain, */*",
 }
 
+METRO_STORES = [
+    ("metro-budaors", "Budaörs", "2040", "Keleti u. 3.", 47.4526, 18.9602, "H-Szo: 5:30-21:30, V: 7:30-18:30"),
+    ("metro-ferencvaros", "Budapest", "1097", "Gyáli út 35-37.", 47.4642, 19.1021, "H-Szo: 5:30-21:30, V: 7:30-18:30"),
+    ("metro-keletpest", "Budapest", "1152", "Városkapu u. 9.", 47.5518, 19.1415, "H-Szo: 5:30-21:30, V: 7:30-18:30"),
+    ("metro-debrecen", "Debrecen", "4031", "Balmazújvárosi út 11.", 47.5452, 21.5843, "H-Szo: 5:30-21:30, V: 7:30-18:30"),
+    ("metro-gyor", "Győr", "9012", "Ménfőcsanak, Királyszék u. 31.", 47.6432, 17.6189, "H-Szo: 5:30-21:30, V: 7:30-18:30"),
+    ("metro-miskolc", "Miskolc", "3527", "József Attila u. 87.", 48.1065, 20.8145, "H-Szo: 5:30-21:30, V: 7:30-18:30"),
+    ("metro-nyiregyhaza", "Nyíregyháza", "4400", "Debreceni út 236.", 47.9254, 21.7012, "H-Szo: 5:30-21:30, V: 7:30-18:30"),
+    ("metro-pecs", "Pécs", "7634", "Makay István út 22.", 46.0682, 18.1812, "H-Szo: 5:30-21:30, V: 7:30-18:30"),
+    ("metro-szeged", "Szeged", "6728", "Budapesti út 1.", 46.2812, 20.1084, "H-Szo: 5:30-21:30, V: 7:30-18:30"),
+    ("metro-szekesfehervar", "Székesfehérvár", "8000", "Jezsuita u. 1.", 47.2056, 18.4412, "H-Szo: 5:30-21:30, V: 7:30-18:30"),
+    ("metro-szombathely", "Szombathely", "9700", "11-es Huszár út 210.", 47.2514, 16.6342, "H-Szo: 5:30-21:30, V: 7:30-18:30"),
+    ("metro-kecskemet", "Kecskemét", "6000", "Kurucz krt. 24.", 46.9142, 19.7089, "H-Szo: 5:30-21:30, V: 7:30-18:30"),
+]
+
 async def fetch_chain_stores(client: httpx.AsyncClient):
     chain_map = {}
     try:
@@ -45,11 +60,66 @@ async def fetch_chain_stores(client: httpx.AsyncClient):
                         INSERT OR REPLACE INTO chain_stores (id, name, image_url)
                         VALUES (?, ?, ?)
                     """, (cid, cname, c.get("imageUrl")))
+
+                # METRO áruházlánc regisztrációja
+                conn.execute("""
+                    INSERT OR REPLACE INTO chain_stores (id, name, image_url)
+                    VALUES (?, ?, ?)
+                """, ("metro-chain", "Metro", "https://akcios-ujsag.hu/uploads/2025/09/metro_nagy_keretes.jpg"))
             conn.close()
-            logger.info(f"Bolt láncok frissítve: {len(data)} db")
+            logger.info(f"Bolt láncok frissítve: {len(data)} db + Metro")
     except Exception as e:
         logger.error(f"Hiba a boltláncok lekérésekor: {e}")
     return chain_map
+
+async def fetch_metro_shops_and_flyers(client: httpx.AsyncClient):
+    """METRO áruházak és akciós újságok letöltése"""
+    import re, json, html
+    conn = get_db_connection()
+    with conn:
+        # 1. METRO Áruházak mentése
+        for uid, city, postal, addr, lat, lon, op in METRO_STORES:
+            conn.execute("""
+                INSERT OR REPLACE INTO shops (uuid, chain_id, chain_name, postal_code, city, address, latitude, longitude, opening_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (uid, "metro-chain", "Metro", postal, city, addr, lat, lon, op))
+
+        # 2. METRO Akciós újságok letöltése
+        try:
+            m_resp = await client.get("https://akcios-ujsag.hu/akcios-ujsag/diszkont-aruhaz/metro/", timeout=15.0)
+            if m_resp.status_code == 200:
+                flyer_urls = set(re.findall(r'href=[\'\"](https?://akcios-ujsag\.hu/akcios-ujsagok/metro-[^\'\"]+)[\'\"]', m_resp.text, re.IGNORECASE))
+                for url in list(flyer_urls)[:10]:
+                    try:
+                        f_resp = await client.get(url, timeout=10.0)
+                        if f_resp.status_code == 200:
+                            f_html = f_resp.text
+                            title_m = re.search(r'<title>(.*?)</title>', f_html)
+                            raw_title = title_m.group(1) if title_m else "Metro Akciós Újság"
+                            title = html.unescape(raw_title).replace(" - Akciós-Újság.hu", "").strip()
+
+                            valid_from = None
+                            valid_to = None
+                            date_match = re.search(r'(\d{4})\.?\s*(\d{1,2})\.(\d{1,2})\s*[-–]\s*(\d{1,2})\.(\d{1,2})', title)
+                            if date_match:
+                                y, m1, d1, m2, d2 = date_match.groups()
+                                valid_from = f"{y}-{int(m1):02d}-{int(d1):02d}"
+                                valid_to = f"{y}-{int(m2):02d}-{int(d2):02d}"
+
+                            imgs = re.findall(r'(https?://akcios-ujsag\.hu/uploads/[^\'\"\s]+\.(?:webp|jpg|jpeg|png))', f_html)
+                            pages = sorted(list(set([i for i in imgs if '_page-' in i or 'page' in i])))
+                            thumb = pages[0] if pages else (imgs[0] if imgs else None)
+
+                            conn.execute("""
+                                INSERT OR REPLACE INTO flyers (chain_name, title, url, thumbnail_url, valid_from, valid_to, pages_json, updated_at)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                            """, ("Metro", title, url, thumb, valid_from, valid_to, json.dumps(pages)))
+                    except Exception as fe:
+                        pass
+        except Exception as e:
+            logger.error(f"Hiba a Metro akciós újságok letöltésekor: {e}")
+    conn.close()
+    logger.info("METRO áruházak és akciós újságok sikeresen szinkronizálva.")
 
 async def fetch_shops(client: httpx.AsyncClient, chain_map: dict):
     try:
@@ -352,9 +422,10 @@ async def run_full_crawler():
                                 """, (pid, chain_id, chain_name, price_type, amount, unit_amount, same_everywhere))
                                 total_prices += 1
 
-        # Az akciós újságok és a Príma akciók a GVH szinkronizáció UTÁN fussanak le, hogy az áraik megmaradjanak!
+        # Az akciós újságok, a Príma akciók és a METRO a GVH szinkronizáció UTÁN fussanak le!
         await fetch_flyers(client)
         await fetch_prima_offers_and_shops(client)
+        await fetch_metro_shops_and_flyers(client)
 
         conn = get_db_connection()
         with conn:
