@@ -1,9 +1,24 @@
 import asyncio
 import logging
 import httpx
+import re
 import time
 from datetime import datetime
 from database import get_db_connection
+
+def clean_product_name(name: str) -> str:
+    """Eltávolítja a forrásrendszerből származó pultos sorszámokat, QQ kódokat és redundanciákat."""
+    if not name:
+        return ""
+    # 1. Pultos tételszámok az elejéről: pl '16. ', '8. ', '27. '
+    name = re.sub(r'^\s*\d+\.\s*', '', name)
+    # 2. Tesco belső ' QQ' kódok
+    name = re.sub(r'\s+QQ\b', '', name, flags=re.IGNORECASE)
+    # 3. Név végére írt redundáns egységárak: pl ' Ft/kg', ' Ft/db'
+    name = re.sub(r'\s+Ft\s*/\s*(?:kg|db)\b', '', name, flags=re.IGNORECASE)
+    # 4. Többszörös szóközök összevonása
+    name = re.sub(r'\s+', ' ', name).strip()
+    return name
 
 logger = logging.getLogger("crawler")
 logger.setLevel(logging.INFO)
@@ -282,7 +297,7 @@ async def run_full_crawler():
                     continue
                 for p in cat_res:
                     pid = str(p.get("id"))
-                    pname = p.get("name", "").strip()
+                    pname = clean_product_name(p.get("name", ""))
                     cat_path = p.get("categoryPath")
                     unit = p.get("unit")
                     unit_title = p.get("unitTitle")
