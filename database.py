@@ -4,6 +4,18 @@ from typing import List, Dict, Any, Optional
 
 DB_PATH = os.environ.get("DB_PATH", os.path.join(os.environ.get("DATA_DIR", "./data"), "akciofigyelo.db"))
 
+def normalize_sql(text: Optional[str]) -> str:
+    if not text:
+        return ""
+    text = text.lower()
+    replacements = {
+        'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ö': 'o', 'ő': 'o',
+        'ú': 'u', 'ü': 'u', 'ű': 'u', 'ä': 'a', 'ë': 'e'
+    }
+    for k, v in replacements.items():
+        text = text.replace(k, v)
+    return text
+
 def get_db_connection() -> sqlite3.Connection:
     os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
@@ -11,6 +23,7 @@ def get_db_connection() -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA synchronous = NORMAL")
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.create_function("NORMALIZE", 1, normalize_sql)
     return conn
 
 def init_db():

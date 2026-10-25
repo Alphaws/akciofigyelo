@@ -128,8 +128,8 @@ async def api_products_catalog(
         from calculator import normalize_text
         words = normalize_text(q).split()
         for w in words:
-            where.append("(LOWER(p.name) LIKE ? OR LOWER(p.category_path) LIKE ?)")
-            params.extend([f"%{w}%", f"%{w}%"])
+            where.append("NORMALIZE(p.name) LIKE ?")
+            params.append(f"%{w}%")
 
     if chain:
         where.append("EXISTS (SELECT 1 FROM prices pr WHERE pr.product_id = p.id AND pr.chain_name = ?)")

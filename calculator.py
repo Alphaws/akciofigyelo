@@ -72,20 +72,17 @@ def parse_shopping_list(raw_text: str) -> List[Dict[str, Any]]:
 
 def search_products_for_query(query: str, limit: int = 15) -> List[Dict[str, Any]]:
     conn = get_db_connection()
-    raw_words = query.lower().split()
     norm_words = normalize_text(query).split()
     if not norm_words:
         conn.close()
         return []
 
-    # Keresés névben vagy kategóriában, mindkét írásmóddal
+    # Keresés KIZÁRÓLAG a termék nevében (NORMALIZE(p.name))
     where_clauses = []
     params = []
-    for i in range(len(norm_words)):
-        nw = norm_words[i]
-        rw = raw_words[i] if i < len(raw_words) else nw
-        where_clauses.append("(LOWER(p.name) LIKE ? OR LOWER(p.name) LIKE ? OR LOWER(p.category_path) LIKE ?)")
-        params.extend([f"%{nw}%", f"%{rw}%", f"%{nw}%"])
+    for nw in norm_words:
+        where_clauses.append("NORMALIZE(p.name) LIKE ?")
+        params.append(f"%{nw}%")
 
     sql = f"""
     SELECT p.id, p.name, p.category_path, p.unit, p.unit_title, p.packaging, p.image_url, p.min_unit_price
