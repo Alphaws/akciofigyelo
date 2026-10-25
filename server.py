@@ -235,23 +235,37 @@ async def api_shops(
     conn.close()
     return {"count": len(shops_list), "shops": shops_list[:limit]}
 
-def extract_validity_period(title: str, url: str = "") -> str:
+def extract_validity_period(title: str, url: str = "", updated_at: str = "") -> tuple[str, str]:
     import re
+    from datetime import datetime, timedelta
     text = f"{title} {url}"
     # Minta 1: év.hó.nap - hó.nap
     m1 = re.search(r'(\d{4})[\.\s\-]+(\d{1,2})[\.\-](\d{1,2})\s*[-–]\s*(?:(\d{1,2})[\.\-])?(\d{1,2})', text)
     if m1:
         y, m1_m, d1, m2_m, d2 = m1.groups()
         m2 = m2_m if m2_m else m1_m
-        return f"{y}.{int(m1_m):02d}.{int(d1):02d} – {y}.{int(m2):02d}.{int(d2):02d}"
+        end_date = f"{y}-{int(m2):02d}-{int(d2):02d}"
+        return f"{y}.{int(m1_m):02d}.{int(d1):02d} – {y}.{int(m2):02d}.{int(d2):02d}", end_date
     
-    # Minta 2: egyetlen kezdőnap
+    # Minta 2: egyetlen kezdőnap (általában 6 nappal későbbi zárással)
     m2 = re.search(r'(\d{4})[\.\s\-]+(\d{1,2})[\.\-](\d{1,2})', text)
     if m2:
         y, m, d = m2.groups()
-        return f"{y}.{int(m):02d}.{int(d):02d}-tól"
+        try:
+            start_dt = datetime.strptime(f"{y}-{int(m):02d}-{int(d):02d}", "%Y-%m-%d")
+            end_date = (start_dt + timedelta(days=6)).strftime("%Y-%m-%d")
+        except:
+            end_date = f"{y}-{int(m):02d}-{int(d):02d}"
+        return f"{y}.{int(m):02d}.{int(d):02d}-tól", end_date
 
-    return "Aktuális heti akció"
+    # Ha nincs feliratban dátum, a crawl időpontjához képest tekintjük érvényesnek 6 napig
+    try:
+        up_dt = datetime.strptime(updated_at[:10], "%Y-%m-%d")
+        end_date = (up_dt + timedelta(days=6)).strftime("%Y-%m-%d")
+    except:
+        end_date = "2026-12-31"
+
+    return "Aktuális heti akció", end_date
 
 @app.get("/api/flyers")
 async def api_flyers(chain: Optional[str] = None):
@@ -269,13 +283,19 @@ async def api_flyers(chain: Optional[str] = None):
         item = dict(r)
         import html
         item["title"] = html.unescape(item.get("title") or "").replace(" - Akciós-Újság.hu", "").strip()
-        item["validity"] = extract_validity_period(item["title"], item.get("url") or "")
+        val_text, end_d = extract_validity_period(item["title"], item.get("url") or "", item.get("updated_at") or "")
+        item["validity"] = val_text
+        item["end_date"] = end_d
         try:
             item["pages"] = json.loads(item.get("pages_json") or "[]")
         except:
             item["pages"] = []
         flyers.append(item)
     conn.close()
+
+    # Vége dátum alapján csökkenő sorrend (legfrissebb / legtovább érvényes elöl), másodlagosan ID DESC
+    flyers.sort(key=lambda x: (x.get("end_date") or "", x["id"]), reverse=True)
+
     return {"count": len(flyers), "flyers": flyers}
 
 @app.post("/api/calculate")
