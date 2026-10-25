@@ -748,7 +748,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
                     <!-- Image & Packaging Info -->
                     <div class="md:col-span-5 flex flex-col items-center">
-                        <div onclick="openImageLightbox(document.getElementById('detail-prod-img').src, document.getElementById('detail-prod-title').innerText)" class="w-full h-48 bg-slate-950 rounded-2xl flex items-center justify-center p-3 border border-slate-800 overflow-hidden mb-3 group cursor-zoom-in relative">
+                        <div onclick="openImageLightbox(document.getElementById('detail-prod-img').src, (document.getElementById('detail-prod-name')?.innerText || 'Termékkép'))" class="w-full h-48 bg-slate-950 rounded-2xl flex items-center justify-center p-3 border border-slate-800 overflow-hidden mb-3 group cursor-zoom-in relative">
                             <img id="detail-prod-img" src="" alt="Termékkép" class="h-full object-contain group-hover:scale-105 transition duration-200">
                             <div class="absolute bottom-2 right-2 bg-slate-900/80 backdrop-blur px-2 py-1 rounded-md text-[10px] text-slate-300 opacity-0 group-hover:opacity-100 transition flex items-center gap-1 border border-slate-700">
                                 <i class="fa-solid fa-expand text-emerald-400"></i> Nagyítás
@@ -1809,7 +1809,7 @@ kenyer`;
                     });
                     google.accounts.id.renderButton(
                         document.getElementById('google-btn-container'),
-                        { theme: 'outline', size: 'large', width: '100%', text: 'signin_with', locale: 'hu' }
+                        { theme: 'outline', size: 'large', width: 320, text: 'signin_with', locale: 'hu' }
                     );
                 } else {
                     document.getElementById('google-btn-container').innerHTML = `
